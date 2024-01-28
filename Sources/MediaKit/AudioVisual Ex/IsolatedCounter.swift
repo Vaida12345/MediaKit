@@ -21,7 +21,7 @@
 /// }
 /// ```
 ///
-/// Please note the existence of ``ConcurrentStream/enumerate(_:)``.
+/// Please note the existence of `ConcurrentStream/enumerate(_:)`.
 public actor IsolatedCounter {
     
     private var counter: Int
