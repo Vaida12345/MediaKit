@@ -1,5 +1,6 @@
 import XCTest
-@testable import PDFUtilities
+@testable 
+import MediaKit
 
 final class PDFUtilitiesTests: XCTestCase {
     func testExample() throws {

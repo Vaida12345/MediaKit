@@ -10,10 +10,114 @@
 #if canImport(PDFKit)
 import PDFKit
 import UniformTypeIdentifiers
-import Nucleus
+import Stratum
 
 
 public extension PDFDocument {
+    
+    /// Initializes a `PDFDocument` object with the contents at the specified `FinderItem`.
+    ///
+    /// - Parameters:
+    ///   - source: The `FinderItem` representing the location of the document.
+    ///
+    /// - Returns: A `PDFDocument` instance initialized with the data at the passed-in `source` or `nil` if the object could not be initialized.
+    @inlinable
+    convenience init?(at source: FinderItem) {
+        self.init(url: source.url)
+    }
+    
+    /// Creates a pdf containing all the `images`.
+    ///
+    /// A `quality` value of 1.0 specifies to use lossless compression if destination format supports it. A value of 0.0 implies to use maximum compression.
+    ///
+    /// - Parameters:
+    ///   - images: The images to be included.
+    ///   - quality: The quality of image compression.
+    @inlinable
+    convenience init(from images: some ConcurrentStream<NativeImage>, quality: CGFloat = 1) async throws {
+        // create PDF
+        self.init()
+        
+        let imageWidth: CGFloat = 1080
+        
+        let pages: some ConcurrentStream<PDFPage> = await images.compactMap { image in
+            guard let pixelSize = image.pixelSize else { return nil }
+            guard pixelSize != .square(0) else { return nil } // cannot read, or a pdf file.
+            let frame = pixelSize.aspectRatio(extend: .width, to: imageWidth)
+#if os(macOS)
+            image.size = frame
+#endif
+            
+            let page = PDFPage(image: image, options: [.compressionQuality: quality, .mediaBox: CGRect(origin: .zero, size: frame), .upscaleIfSmaller: true])
+            guard let page else { return nil }
+            
+            page.setBounds(CGRect(origin: .zero, size: frame), for: .mediaBox)
+            return page
+        }
+        
+        var iterator = await pages.makeAsyncIterator(sorted: true)
+        
+        var pageCounter = 0
+        while let page = try await iterator.next() {
+            self.insert(page, at: pageCounter)
+            pageCounter += 1
+        }
+        
+        if pageCounter == 0 { throw ErrorManager("Cannot create pdf because the pdf document is empty.") }
+    }
+    
+    /// Adds the pages of a pdf document to the end of the document.
+    ///
+    /// - Parameters:
+    ///   - document: The pages to append to the document.
+    @inlinable
+    func append(pagesOf document: PDFDocument) {
+        for pageIndex in 0..<document.pageCount {
+            guard let page = document.page(at: pageIndex) else { return }
+            self.insert(page, at: self.pageCount)
+        }
+    }
+    
+    /// Renders the contents of pdf to images.
+    ///
+    /// This function now runs in parallel.
+    @inlinable
+    func rendered() async -> some ConcurrentStream<CGImage> {
+        await (0..<self.pageCount).stream.compactMap { i in
+            guard let page = self.page(at: i) else { return nil }
+            let size = page.bounds(for: .mediaBox).size
+            return page.thumbnail(of: size, for: .mediaBox).cgImage
+        }
+    }
+    
+    /// Writes the current document to disk
+    ///
+    /// - Parameters:
+    ///   - destination: The item indicating the place to persist document.
+    @inlinable
+    func write(to destination: FinderItem) throws {
+        guard self.write(to: destination.url) else { throw ErrorManager("Cannot write pdf to the given path.") }
+    }
+    
+    /// Sets the attribute of the file document.
+    ///
+    /// - Parameters:
+    ///   - key: The key for document attribute.
+    ///   - value: The value of the key.
+    @inlinable
+    func setAttribute(_ key: PDFDocumentAttribute, _ value: Any) {
+        self.documentAttributes?[key.rawValue] = value
+    }
+    
+    /// The attribute of the file document.
+    ///
+    /// - Parameters:
+    ///   - key: The key for document attribute.
+    @inlinable
+    func attribute(for key: PDFDocumentAttribute) -> Any? {
+        self.documentAttributes?[key.rawValue]
+    }
+    
     
     /// Extract images from the given pdf.
     ///
