@@ -28,6 +28,11 @@ You can add this framework as a dependency to your Xcode project by clicking Fil
 
 ## Topics
 
+### Core
+
+- <doc:AVAsset>
+- <doc:PDF>
+
 ### Supplementary Structures
 
 The structures defined in support of the extensions.
