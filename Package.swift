@@ -13,9 +13,10 @@ let package = Package (
     ], products: [
         .library(name: "MediaKit", targets: ["MediaKit"]),
     ], dependencies: [
-        .package(name: "Stratum", path: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Projects/Packages/Stratum")
+        .package(name: "Stratum", path: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Projects/Packages/Stratum"),
+        .package(name: "ConcurrentStream", path: "~/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Projects/Packages/ConcurrentStream")
     ], targets: [
-        .target(name: "MediaKit", dependencies: ["Stratum"]),
+        .target(name: "MediaKit", dependencies: ["Stratum", "ConcurrentStream"]),
         .testTarget(name: "Tests", dependencies: ["MediaKit"]),
     ]
 )

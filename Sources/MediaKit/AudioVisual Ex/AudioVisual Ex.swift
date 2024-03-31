@@ -11,6 +11,7 @@
 import AVFoundation
 import OSLog
 import Stratum
+import ConcurrentStream
 
 
 public extension AVAsset {
@@ -207,11 +208,10 @@ public extension AVAsset {
         try video.generateOutputPath()
         
         let logger = Logger(subsystem: "The Support Framework", category: "AVAsset Extension")
-        var _iterator = await images.makeAsyncIterator(sorted: true)
         
-        guard let first = try await _iterator.next() else { throw ConvertImagesToVideoError.imagesEmpty }
+        guard let first = try await images.next() else { throw ConvertImagesToVideoError.imagesEmpty }
         
-        var iterator = await ([first].stream + ConcurrentStreamSequence(iterator: _iterator)).makeAsyncIterator(sorted: true)
+        let iterator = [first].stream + images
         
         let _frame: CGImage? = getImage(first)
         let videoWidth  = _frame!.width

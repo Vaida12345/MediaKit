@@ -11,6 +11,7 @@
 import PDFKit
 import UniformTypeIdentifiers
 import Stratum
+import ConcurrentStream
 
 
 public extension PDFDocument {
@@ -55,10 +56,8 @@ public extension PDFDocument {
             return page
         }
         
-        var iterator = await pages.makeAsyncIterator(sorted: true)
-        
         var pageCounter = 0
-        while let page = try await iterator.next() {
+        while let page = try await pages.next() {
             self.insert(page, at: pageCounter)
             pageCounter += 1
         }
@@ -274,10 +273,10 @@ public extension PDFDocument {
             }
         }
         
-        return await (0..<self.pageCount).stream.flatMap { index in
+        return await (0..<self.pageCount).stream.compactMap { index in
             let page = self.page(at: index)!
             return await extractImage(from: page)?.stream
-        }
+        }.flatten()
     }
     
 }
