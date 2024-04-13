@@ -21,10 +21,31 @@ public extension PDFDocument {
     /// - Parameters:
     ///   - source: The `FinderItem` representing the location of the document.
     ///
-    /// - Returns: A `PDFDocument` instance initialized with the data at the passed-in `source` or `nil` if the object could not be initialized.
+    /// - Returns: A `PDFDocument` instance initialized with the data at the passed-in `source`.
+    ///
+    /// ## Topics
+    /// ### Potential Error
+    /// - ``ReadError``
     @inlinable
-    convenience init?(at source: FinderItem) {
-        self.init(url: source.url)
+    convenience init(at source: FinderItem) throws {
+        guard PDFDocument(url: source.url) != nil else { throw ReadError.cannotRead(source) }
+        self.init(url: source.url)!
+    }
+    
+    enum ReadError: GenericError {
+        
+        case cannotRead(FinderItem)
+        
+        public var title: String {
+            "Cannot Read PDF Document"
+        }
+        
+        public var message: String {
+            switch self {
+            case .cannotRead(let item):
+                "The file at \(item) does not exist or is not a PDF document."
+            }
+        }
     }
     
     /// Creates a pdf containing all the `images`.
@@ -61,8 +82,6 @@ public extension PDFDocument {
             self.insert(page, at: pageCounter)
             pageCounter += 1
         }
-        
-        if pageCounter == 0 { throw ErrorManager("Cannot create pdf because the pdf document is empty.") }
     }
     
     /// Adds the pages of a pdf document to the end of the document.
@@ -93,9 +112,29 @@ public extension PDFDocument {
     ///
     /// - Parameters:
     ///   - destination: The item indicating the place to persist document.
+    ///
+    /// ## Topics
+    /// ### Potential Error
+    /// - ``WriteError``
     @inlinable
     func write(to destination: FinderItem) throws {
-        guard self.write(to: destination.url) else { throw ErrorManager("Cannot write pdf to the given path.") }
+        guard self.write(to: destination.url) else { throw WriteError.cannotWrite(destination) }
+    }
+    
+    enum WriteError: GenericError {
+        
+        case cannotWrite(FinderItem)
+        
+        public var title: String {
+            "Cannot write PDF Document"
+        }
+        
+        public var message: String {
+            switch self {
+            case .cannotWrite(let item):
+                "Cannot write a PDF document to \(item), either because cannot write, or the document is damaged."
+            }
+        }
     }
     
     /// Sets the attribute of the file document.
