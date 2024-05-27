@@ -140,6 +140,7 @@ extension CGPDFDictionaryRef: CustomReflectable {
                 children.append((key, object.getValue(type: .real, for: CGFloat.self)!))
             case .name:
                 children.append((key, String(cString: object.getValue(type: .name, for: UnsafePointer<CChar>.self)!)))
+                
             case .string:
                 let object = object.getValue(type: .string, for: CGPDFStringRef.self)!
                 if let value = CGPDFStringCopyDate(object) {

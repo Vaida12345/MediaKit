@@ -18,5 +18,6 @@ let package = Package (
     ], targets: [
         .target(name: "MediaKit", dependencies: ["Stratum", "ConcurrentStream"]),
         .testTarget(name: "Tests", dependencies: ["MediaKit"]),
+        .executableTarget(name: "Client", dependencies: ["MediaKit"])
     ]
 )
