@@ -11,7 +11,7 @@ import CoreGraphics
 
 
 /// A bridge from obj-c to Swift.
-extension CGPDFDictionaryRef: CustomReflectable {
+extension CGPDFDictionaryRef: @retroactive CustomReflectable {
     
     /// Returns the number of entries in a PDF dictionary.
     var count: Int {

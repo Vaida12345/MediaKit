@@ -8,10 +8,11 @@
 
 
 #if !os(watchOS) && !os(visionOS)
-import AVFoundation
+@preconcurrency import AVFoundation
 import OSLog
 import Stratum
 import ConcurrentStream
+import Synchronization
 
 
 public extension AVAsset {
@@ -203,7 +204,8 @@ public extension AVAsset {
     ///   - getTime: The function to extract time from an element of `image`. Note that when this is not `nil`, the `videoFPS` parameter will not be used.
     ///
     /// Source: [stack overflow](https://stackOverflow.com/questions/3741323/how-do-i-export-UIImage-array-as-a-movie/3742212#36297656)
-    static func convert<Element>(images: some ConcurrentStream<Element>, toVideo video: FinderItem, videoFPS: Float, colorSpace: CGColorSpace? = nil, container: AVFileType = .mov, codec: AVVideoCodecType = .hevc, getImage: @escaping (_ item: Element) -> CGImage, getTime: ((_ item: Element) -> CMTime)? = nil) async throws {
+    @available(macOS 15, *)
+    static func convert<Element, E>(images: some ConcurrentStream<Element, E>, toVideo video: FinderItem, videoFPS: Float, colorSpace: CGColorSpace? = nil, container: AVFileType = .mov, codec: AVVideoCodecType = .hevc, getImage: @escaping @Sendable (_ item: Element) -> CGImage, getTime: (@Sendable (_ item: Element) -> CMTime)? = nil) async throws where E: Error {
         
         try video.generateOutputPath()
         
@@ -211,6 +213,7 @@ public extension AVAsset {
         
         guard let first = try await images.next() else { throw ConvertImagesToVideoError.imagesEmpty }
         
+        nonisolated(unsafe)
         let iterator = [first].stream + images
         
         let _frame: CGImage? = getImage(first)
@@ -229,6 +232,7 @@ public extension AVAsset {
         ]
         
         // Add video input to writer
+        nonisolated(unsafe)
         let assetWriterVideoInput = AVAssetWriterInput(mediaType: AVMediaType.video, outputSettings: videoSettings)
         assetWriter.add(assetWriterVideoInput)
         
@@ -251,7 +255,7 @@ public extension AVAsset {
         // -- Set video parameters
         let frameRate = Fraction(videoFPS)
         let frameDuration = CMTime(value: Int64(frameRate.denominator), timescale: Int32(frameRate.numerator))
-        let frameCounter = IsolatedCounter()
+        let frameCounter = Atomic(0)
         
         logger.info("Start to create video from the given stream")
         
@@ -269,7 +273,7 @@ public extension AVAsset {
                     do {
                         guard assetWriterVideoInput.isReadyForMoreMediaData else { return } // go on waiting
                         
-                        let frameCount = await frameCounter.advance()
+                        let frameCount = frameCounter.add(1, ordering: .sequentiallyConsistent).oldValue
                         
                         // Draw image into context
                         logger.debug("Enquiring next frame")

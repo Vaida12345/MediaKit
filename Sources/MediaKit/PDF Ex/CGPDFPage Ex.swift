@@ -10,7 +10,7 @@
 import CoreGraphics
 
 
-extension CGPDFPage: CustomReflectable {
+extension CGPDFPage: @retroactive CustomReflectable {
     
     public var customMirror: Mirror {
         self.dictionary?.customMirror ?? Mirror("Some CGPDFPage", children: [])

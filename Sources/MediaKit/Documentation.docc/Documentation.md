@@ -2,6 +2,18 @@
 
 A collection of extended functionalities to the media frameworks. 
 
+@Metadata {
+    @PageColor(red)
+    
+    @SupportedLanguage(swift)
+    
+    @Available(macOS,    introduced: 13.0)
+    @Available(iOS,      introduced: 16.0)
+    @Available(watchOS,  introduced: 9.0)
+    @Available(tvOS,     introduced: 16.0)
+    @Available(visionOS, introduced: 1.0)
+}
+
 ## Overview
 
 The framework aims to provide additional methods for the structures defined within `PDFKit` and `AVFoundation`.
@@ -32,9 +44,3 @@ You can add this framework as a dependency to your Xcode project by clicking Fil
 
 - <doc:AVAsset>
 - <doc:PDF>
-
-### Supplementary Structures
-
-The structures defined in support of the extensions.
-
-- ``IsolatedCounter``

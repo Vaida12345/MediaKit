@@ -56,13 +56,13 @@ public extension PDFDocument {
     ///   - images: The images to be included.
     ///   - quality: The quality of image compression.
     @inlinable
-    convenience init(from images: some ConcurrentStream<NativeImage>, quality: CGFloat = 1) async throws {
+    convenience init<E>(from images: some ConcurrentStream<NativeImage, E>, quality: CGFloat = 1) async throws where E: Error {
         // create PDF
         self.init()
         
         let imageWidth: CGFloat = 1080
         
-        let pages: some ConcurrentStream<PDFPage> = await images.compactMap { image in
+        let pages = await images.compactMap { (image: NativeImage) -> PDFPage? in
             guard let pixelSize = image.pixelSize else { return nil }
             guard pixelSize != .square(0) else { return nil } // cannot read, or a pdf file.
             let frame = pixelSize.aspectRatio(extend: .width, to: imageWidth)
@@ -100,9 +100,12 @@ public extension PDFDocument {
     ///
     /// This function now runs in parallel.
     @inlinable
-    func rendered() async -> some ConcurrentStream<CGImage> {
-        await (0..<self.pageCount).stream.compactMap { i in
-            guard let page = self.page(at: i) else { return nil }
+    func rendered() async -> some ConcurrentStream<CGImage, Never> {
+        nonisolated(unsafe)
+        let document = self
+        
+        return await (0..<self.pageCount).stream.compactMap { i in
+            guard let page = document.page(at: i) else { return nil }
             let size = page.bounds(for: .mediaBox).size
             return page.thumbnail(of: size, for: .mediaBox).cgImage
         }
@@ -160,7 +163,7 @@ public extension PDFDocument {
     /// Extract images from the given pdf.
     ///
     /// The operation is async.
-    func extractImages() async throws -> some ConcurrentStream<CGImage> {
+    func extractImages() async throws -> some ConcurrentStream<CGImage, Never> {
         
         @Sendable
         func _obtainStream(dictionary: OpaquePointer) -> [OpaquePointer]? {
@@ -312,8 +315,10 @@ public extension PDFDocument {
             }
         }
         
+        nonisolated(unsafe)
+        let document = self
         return await (0..<self.pageCount).stream.compactMap { index in
-            let page = self.page(at: index)!
+            let page = document.page(at: index)!
             return await extractImage(from: page)?.stream
         }.flatten()
     }
