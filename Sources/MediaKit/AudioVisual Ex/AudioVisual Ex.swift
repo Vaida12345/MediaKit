@@ -40,6 +40,16 @@ public extension AVAsset {
         guard await (try? self.load(.isReadable)) ?? false else { return nil }
     }
     
+    var frameCount: Int {
+        get async throws {
+            let vidLength: CMTime = try await self.load(.duration)
+            guard let video = try await self.loadTracks(withMediaType: .video).first else { throw GenerateFramesStreamError.assetNotVideo }
+            let seconds = vidLength.seconds
+            let frameRate = try await video.load(.nominalFrameRate)
+            return Int(seconds * Double(frameRate))
+        }
+    }
+    
     
     /// Returns the iterator of all the frames of the video.
     func generateFramesStream() async throws -> AsyncStream<(image: CGImage, actualTime: CMTime)> {
