@@ -323,6 +323,10 @@ public extension AVAsset {
                         
                         context.draw(getImage(frame), in: drawCGRect)
                         CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
+
+						// let drawCGRect = CGRect(center: CGPoint(x: size.width / 2, y: size.height / 2), size: frame.size)
+                		// let context = CIContext()
+                		// context.render(CIImage(cgImage: frame), to: pixelBuffer, bounds: drawCGRect, colorSpace: frame.colorSpace)
                         
                         pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
                         pixelBufferPointer.deinitialize(count: 1)
