@@ -24,10 +24,13 @@ internal extension CGPDFObjectRef {
     ///   - type: A PDF object type.
     ///   - swiftType: The expected type in Swift.
     func getValue<SwiftType>(type: CGPDFObjectType, for swiftType: SwiftType.Type) -> SwiftType? {
-        var result: SwiftType? = nil
+        let pointer = UnsafeMutablePointer<SwiftType>.allocate(capacity: 1)
+        defer {
+            pointer.deallocate()
+        }
         
-        guard CGPDFObjectGetValue(self, type, &result) else { return nil }
-        return result
+        guard CGPDFObjectGetValue(self, type, pointer) else { return nil }
+        return pointer.pointee
     }
     
 }
