@@ -13,6 +13,7 @@ import OSLog
 import FinderItem
 import ConcurrentStream
 import Synchronization
+import NativeImage
 
 
 public extension AVAsset {

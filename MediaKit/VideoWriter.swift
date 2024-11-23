@@ -62,8 +62,8 @@ public final class VideoWriter: @unchecked Sendable {
         
         guard pixelBufferAdaptor.pixelBufferPool != nil else { throw ConvertImagesToVideoError.pixelBufferPoolNil }
         
-        nonisolated(unsafe)
-        let converter = MetalImageConverter()
+//        nonisolated(unsafe)
+//        let converter = MetalImageConverter()
         
         let drawCGRect = CGRect(x: 0, y: 0, width: Int(size.width), height: Int(size.height))
         let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
@@ -124,7 +124,6 @@ public final class VideoWriter: @unchecked Sendable {
                     
                     pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
                     pixelBufferPointer.deinitialize(count: 1)
-                    pixelBufferPointer.deallocate()
                     
                     counter.withLock { $0 += 1 }
                 }

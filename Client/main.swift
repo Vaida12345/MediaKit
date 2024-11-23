@@ -8,7 +8,6 @@
 import Foundation
 import MediaKit
 import PDFKit
-@testable
 import DetailedDescription
 import FinderItem
 
