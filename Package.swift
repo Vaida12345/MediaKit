@@ -13,15 +13,12 @@ let package = Package (
     ], products: [
         .library(name: "MediaKit", targets: ["MediaKit"]),
     ], dependencies: [
-        .package(name: "Stratum",
-                 path: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Projects/Packages/Stratum"),
-        .package(name: "ConcurrentStream",
-                 path: "~/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Projects/Packages/ConcurrentStream"),
-        .package(name: "DetailedDescription",
-                 path: "~/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Projects/Packages/DetailedDescription")
+        .package(url: "https://github.com/Vaida12345/FinderItem.git", from: "1.0.0"),
+        .package(url: "https://github.com/Vaida12345/ConcurrentStream.git", from: "0.1.0"),
+        .package(url: "https://github.com/Vaida12345/DetailedDescription.git", from: "1.0.0"),
+        .package(url: "https://github.com/Vaida12345/NativeImage.git", from: "1.0.0"),
     ], targets: [
-        .target(name: "MediaKit", dependencies: ["Stratum", "ConcurrentStream", "DetailedDescription"]),
-        .testTarget(name: "Tests", dependencies: ["MediaKit"]),
-        .executableTarget(name: "Client", dependencies: ["MediaKit"])
+        .target(name: "MediaKit", dependencies: ["FinderItem", "ConcurrentStream", "DetailedDescription", "NativeImage"], path: "MediaKit"),
+        .executableTarget(name: "Client", dependencies: ["MediaKit"], path: "Client")
     ], swiftLanguageModes: [.v5]
 )

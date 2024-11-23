@@ -10,8 +10,10 @@
 #if canImport(PDFKit)
 import PDFKit
 import UniformTypeIdentifiers
-import Stratum
+import FinderItem
 import ConcurrentStream
+import Essentials
+import NativeImage
 
 
 public extension PDFDocument {
@@ -177,7 +179,7 @@ public extension PDFDocument {
                 case .stream(let stream):
                     streams.append(stream)
                 case .dictionary(let dictionary):
-                    for (key, value) in dictionary {
+                    for (_, value) in dictionary {
                         queue.enqueue(value)
                     }
                 default:

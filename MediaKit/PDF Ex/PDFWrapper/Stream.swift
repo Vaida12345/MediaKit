@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Stratum
+import Essentials
 import CoreGraphics
 import DetailedDescription
 import OSLog

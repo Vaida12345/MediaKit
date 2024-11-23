@@ -7,8 +7,8 @@
 
 import Foundation
 import CoreGraphics
-import Stratum
 import DetailedDescription
+import Essentials
 
 
 extension CGPDFPageWrapper {

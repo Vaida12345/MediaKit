@@ -7,7 +7,6 @@
 
 import Foundation
 import DetailedDescription
-import Stratum
 import CoreGraphics
 
 
