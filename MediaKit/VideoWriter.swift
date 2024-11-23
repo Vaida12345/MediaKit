@@ -65,6 +65,9 @@ public final class VideoWriter: @unchecked Sendable {
         nonisolated(unsafe)
         let converter = MetalImageConverter()
         
+        let drawCGRect = CGRect(x: 0, y: 0, width: Int(size.width), height: Int(size.height))
+        let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
+        
         let _: Void = await withCheckedContinuation { continuation in
             assetWriterVideoInput.requestMediaDataWhenReady(on: mediaQueue) { [unowned self] in
                 autoreleasepool {
@@ -109,11 +112,19 @@ public final class VideoWriter: @unchecked Sendable {
                         return
                     }
                     
-                    converter.convertImageToPixelBuffer(frame, pixelBuffer: pixelBuffer, size: size)
+                    CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
                     
-                    assert(assetWriter.status == .writing)
-                    assert(assetWriterVideoInput.isReadyForMoreMediaData)
-                    assert(pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime))
+                    let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
+                    
+                    // Create CGBitmapContext
+                    let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), space: defaultColorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)!
+                    
+                    context.draw(frame, in: drawCGRect)
+                    CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
+                    
+                    pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
+                    pixelBufferPointer.deinitialize(count: 1)
+                    pixelBufferPointer.deallocate()
                     
                     counter.withLock { $0 += 1 }
                 }
