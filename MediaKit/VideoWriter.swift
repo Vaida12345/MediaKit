@@ -23,6 +23,8 @@ public final class VideoWriter: @unchecked Sendable {
     
     let size: CGSize
     
+    let destination: FinderItem
+    
     let frameRate: Int
     
     let mediaQueue = DispatchQueue(label: "app.PianoVisualizer.VideoWriter.mediaQueue")
@@ -41,6 +43,8 @@ public final class VideoWriter: @unchecked Sendable {
     /// Parameters for `yield`:
     /// - term index: The index of the frame.
     /// - term returns: An image at the given index, or `nil`, indicating the end of video.
+    ///
+    /// To cancel the video writer, cancel the parent task.
     ///
     /// - Precondition: The images produced from `yield` must match the `size` when initializing the writer.
     public func startWriting(yield: @escaping (_ index: Int) -> CGImage?) async throws {
@@ -62,78 +66,96 @@ public final class VideoWriter: @unchecked Sendable {
         
         guard pixelBufferAdaptor.pixelBufferPool != nil else { throw ConvertImagesToVideoError.pixelBufferPoolNil }
         
-//        nonisolated(unsafe)
-//        let converter = MetalImageConverter()
         
         let drawCGRect = CGRect(x: 0, y: 0, width: Int(size.width), height: Int(size.height))
         let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
         
-        let _: Void = await withCheckedContinuation { continuation in
-            assetWriterVideoInput.requestMediaDataWhenReady(on: mediaQueue) { [unowned self] in
-                autoreleasepool {
-                    guard assetWriterVideoInput.isReadyForMoreMediaData else { return } // go on waiting
-                    
-                    // prepare buffer
-                    nonisolated(unsafe)
-                    let pixelBufferPointer = UnsafeMutablePointer<CVPixelBuffer?>.allocate(capacity: 1)
-                    
-                    nonisolated(unsafe)
-                    var pixelBuffer: CVPixelBuffer! = nil
-                    
-                    nonisolated(unsafe)
-                    var presentationTime: CMTime! = nil
-                    
-                    preparePixelQueue.async {
-                        let pixelBufferPool = pixelBufferAdaptor.pixelBufferPool!
+        nonisolated(unsafe)
+        var _continuation: CheckedContinuation<Void, Never>? = nil
+        
+        try await withTaskCancellationHandler {
+            let _: Void = await withCheckedContinuation { continuation in
+                _continuation = continuation
+                
+                assetWriterVideoInput.requestMediaDataWhenReady(on: mediaQueue) { [unowned self] in
+                    autoreleasepool {
+                        guard assetWriterVideoInput.isReadyForMoreMediaData else { return } // go on waiting
                         
-                        CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, pixelBufferPointer)
-                        pixelBuffer = pixelBufferPointer.pointee!
+                        // prepare buffer
+                        nonisolated(unsafe)
+                        let pixelBufferPointer = UnsafeMutablePointer<CVPixelBuffer?>.allocate(capacity: 1)
                         
-                        presentationTime = self.counter.withLock { counter in
-                            CMTime(value: CMTimeValue(counter), timescale: CMTimeScale(self.frameRate))
+                        nonisolated(unsafe)
+                        var pixelBuffer: CVPixelBuffer! = nil
+                        
+                        nonisolated(unsafe)
+                        var presentationTime: CMTime! = nil
+                        
+                        preparePixelQueue.async {
+                            let pixelBufferPool = pixelBufferAdaptor.pixelBufferPool!
+                            
+                            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, pixelBufferPointer)
+                            pixelBuffer = pixelBufferPointer.pointee!
+                            
+                            presentationTime = self.counter.withLock { counter in
+                                CMTime(value: CMTimeValue(counter), timescale: CMTimeScale(self.frameRate))
+                            }
                         }
+                        
+                        let index = counter.withLock { counter in
+                            counter
+                        }
+                        // Produce
+                        
+                        // Draw image into context
+                        
+                        preparePixelQueue.sync { } // wait for the queue
+                        defer {
+                            pixelBufferPointer.deallocate()
+                        }
+                        
+                        guard let frame = yield(index) else {
+                            assetWriterVideoInput.markAsFinished()
+                            continuation.resume()
+                            return
+                        }
+                        
+                        CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
+                        
+                        let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
+                        
+                        // Create CGBitmapContext
+                        let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), space: defaultColorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)! // 32BGRA
+                        
+                        context.draw(frame, in: drawCGRect)
+                        CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
+                        
+                        pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
+                        pixelBufferPointer.deinitialize(count: 1)
+                        
+                        counter.withLock { $0 += 1 }
                     }
-                    
-                    let index = counter.withLock { counter in
-                        counter
-                    }
-                    // Produce
-                    
-                    // Draw image into context
-                    
-                    preparePixelQueue.sync { } // wait for the queue
-                    defer {
-                        pixelBufferPointer.deallocate()
-                    }
-                    
-                    guard let frame = yield(index) else {
-                        assetWriterVideoInput.markAsFinished()
-                        continuation.resume()
-                        return
-                    }
-                    
-                    CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
-                    
-                    let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
-                    
-                    // Create CGBitmapContext
-                    let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), space: defaultColorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)! // 32BGRA
-                    
-                    context.draw(frame, in: drawCGRect)
-                    CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
-                    
-                    pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
-                    pixelBufferPointer.deinitialize(count: 1)
-                    
-                    counter.withLock { $0 += 1 }
                 }
             }
+            
+            if Task.isCancelled {
+                // run in on cancel
+                return
+            }
+            
+            mediaQueue.sync { }
+            await assetWriter.finishWriting()
+            
+            guard assetWriter.error == nil else { throw assetWriter.error! }
+        } onCancel: {
+            _continuation?.resume()
+            assetWriterVideoInput.markAsFinished()
+            mediaQueue.sync { }
+            
+            assetWriter.finishWriting {
+                try? self.destination.removeIfExists()
+            }
         }
-        
-        mediaQueue.sync { }
-        await assetWriter.finishWriting()
-        
-        guard assetWriter.error == nil else { throw assetWriter.error! }
     }
     
     
@@ -150,6 +172,7 @@ public final class VideoWriter: @unchecked Sendable {
     public init(size: CGSize, frameRate: Int, to destination: FinderItem, container: AVFileType = .mov, codec: AVVideoCodecType = .hevc) throws {
         self.size = size
         self.frameRate = frameRate
+        self.destination = destination
         
         let videoWidth  = size.width
         let videoHeight = size.height

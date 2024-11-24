@@ -10,6 +10,8 @@ import MediaKit
 import PDFKit
 import DetailedDescription
 import FinderItem
+import Essentials
+
 
 #if os(macOS)
 func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.systemFont(ofSize: 24), textColor: NSColor = .black, backgroundColor: NSColor = .white) -> CGImage? {
@@ -56,12 +58,15 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
 
 if #available(macOS 15.0, *) {
     let writer = try VideoWriter(size: CGSize(width: 1920, height: 1080), frameRate: 120, to: FinderItem.desktopDirectory.appending(path: "test.m4v"))
-    try await writer.startWriting { index in
-        if index <= 231 {
-            return createImageWithText("\(index)", size: CGSize(width: 1920, height: 1080))
-        } else {
-            return nil
+    
+    do {
+        try await Task.withTimeLimit(for: .seconds(2)) {
+            try await writer.startWriting { index in
+                createImageWithText("\(index)", size: CGSize(width: 1920, height: 1080))
+            }
         }
+    } catch {
+        print(error)
     }
 }
 #endif
