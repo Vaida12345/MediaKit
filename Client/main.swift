@@ -65,8 +65,10 @@ if #available(macOS 15.0, *) {
                 createImageWithText("\(index)", size: CGSize(width: 1920, height: 1080))
             }
         }
+        
     } catch {
         print(error)
     }
+    try await Task.sleep(for: .seconds(10))
 }
 #endif
