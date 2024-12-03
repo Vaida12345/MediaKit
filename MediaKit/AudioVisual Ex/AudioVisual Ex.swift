@@ -7,7 +7,7 @@
 //
 
 
-#if !os(watchOS) && !os(visionOS)
+#if !os(watchOS)
 @preconcurrency import AVFoundation
 import OSLog
 import FinderItem
@@ -19,6 +19,7 @@ import NativeImage
 public extension AVAsset {
     
     /// The first frame of the video.
+    @available(visionOS, unavailable)
     @inlinable
     var firstFrame: CGImage {
         get async throws {
