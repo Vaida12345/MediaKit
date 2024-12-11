@@ -10,6 +10,7 @@ import DetailedDescription
 import CoreGraphics
 
 
+/// PDF Reading Wrapper.
 public struct CGPDFPageWrapper: CustomStringConvertible, CustomDetailedStringConvertible {
     
     let source: CGPDFPage

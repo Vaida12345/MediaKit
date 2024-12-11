@@ -35,7 +35,7 @@ public extension AVAsset {
     /// - Parameters:
     ///   - source: The `FinderItem` representing the location of the asset.
     ///
-    /// - Returns: An `AVAsset` instance initialized with the data at the passed-in `source` or `nil` if the object is not readable.
+    /// Returns an `AVAsset` instance initialized with the data at the passed-in `source` or `nil` if the object is not readable.
     @inlinable
     convenience init?(at source: FinderItem) async {
         self.init(url: source.url)

@@ -8,12 +8,13 @@ Audio-Visual Asset related extensions
 ### Initializers
 - ``AVFoundation/AVAsset/init(at:)``
 
-
 ### Inspect frames
 - ``AVFoundation/AVAsset/firstFrame``
+- ``AVFoundation/AVAsset/frameCount``
 - ``AVFoundation/AVAsset/generateFrames()``
 - ``AVFoundation/AVAsset/generateFramesStream()``
 
 ### Dealing with videos
 - ``AVFoundation/AVAsset/merge(video:withAudio:container:)``
 - ``AVFoundation/AVAsset/convert(images:toVideo:videoFPS:colorSpace:container:codec:getImage:getTime:)``
+- ``VideoWriter``

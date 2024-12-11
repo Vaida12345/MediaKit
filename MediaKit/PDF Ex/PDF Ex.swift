@@ -23,8 +23,6 @@ public extension PDFDocument {
     /// - Parameters:
     ///   - source: The `FinderItem` representing the location of the document.
     ///
-    /// - Returns: A `PDFDocument` instance initialized with the data at the passed-in `source`.
-    ///
     /// ## Topics
     /// ### Potential Error
     /// - ``ReadError``

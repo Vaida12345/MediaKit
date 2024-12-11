@@ -22,3 +22,8 @@ Portal Document Format related extensions
 
 ### Working with documents
 - ``PDFKit/PDFDocument/append(pagesOf:)``
+- ``PDFKit/PDFDocument/subscript(_:)``
+
+### Document Wrapper
+- ``PDFKit/PDFPage/wrapper``
+- ``CGPDFPageWrapper``
