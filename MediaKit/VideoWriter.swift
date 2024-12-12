@@ -71,6 +71,17 @@ public final class VideoWriter: @unchecked Sendable {
         nonisolated(unsafe)
         var _continuation: CheckedContinuation<Void, any Error>? = nil
         
+        nonisolated(unsafe)
+        var nextFrameTask: Task<CGImage?, any Error>? = nil
+        
+        @Sendable func dispatchNextFrame(index: Int) -> Task<CGImage?, any Error>? {
+            Task.detached {
+                try await yield(index)
+            }
+        }
+        nextFrameTask = dispatchNextFrame(index: 0)
+        
+        
         try await withTaskCancellationHandler {
             let _: Void = try await withCheckedThrowingContinuation { continuation in
                 _continuation = continuation
@@ -106,11 +117,12 @@ public final class VideoWriter: @unchecked Sendable {
                         }
                         
                         do {
-                            guard let frame = try await yield(index) else {
+                            guard let frame = try await nextFrameTask?.value else {
                                 assetWriterVideoInput.markAsFinished()
                                 continuation.resume()
                                 return
                             }
+                            nextFrameTask = dispatchNextFrame(index: index + 1)
                             
                             CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
                             
@@ -145,6 +157,7 @@ public final class VideoWriter: @unchecked Sendable {
             
             guard assetWriter.error == nil else { throw assetWriter.error! }
         } onCancel: {
+            nextFrameTask?.cancel()
             _continuation?.resume()
             assetWriterVideoInput.markAsFinished()
             mediaQueue.sync { }
