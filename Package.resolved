@@ -1,19 +1,19 @@
 {
-  "originHash" : "25cd892a9de7c7336c24bdfd95c2bebce474011ca8c0625f87782879384cda09",
+  "originHash" : "767625d292df7f184ff2ac193491f047d05b2998fcd21bd8bcbfd4f70ca8dc88",
   "pins" : [
     {
       "identity" : "concurrentstream",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Vaida12345/ConcurrentStream.git",
+      "location" : "https://www.github.com/Vaida12345/ConcurrentStream.git",
       "state" : {
-        "revision" : "6a4a66b5e6ff72e68df8b720538db5cef0039312",
-        "version" : "0.1.0"
+        "revision" : "1b00d06264105dfa9787a1b0fbe6cfd29e4cef80",
+        "version" : "0.1.1"
       }
     },
     {
       "identity" : "detaileddescription",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Vaida12345/DetailedDescription.git",
+      "location" : "https://www.github.com/Vaida12345/DetailedDescription.git",
       "state" : {
         "revision" : "eee79eadf9e9918150c88796e30a202e3f133cf7",
         "version" : "1.0.0"
@@ -24,23 +24,23 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Vaida12345/Essentials",
       "state" : {
-        "revision" : "58eaa7ab88a57400ea0bdad7ce4fbd35aeab4f13",
-        "version" : "1.0.3"
+        "revision" : "f2d242b5b4888386b780e2b54b9409b38afc3c9b",
+        "version" : "1.0.9"
       }
     },
     {
       "identity" : "finderitem",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Vaida12345/FinderItem.git",
+      "location" : "https://www.github.com/Vaida12345/FinderItem.git",
       "state" : {
-        "revision" : "0071dac1987cb68b067957b455fccdd2b09c528a",
-        "version" : "1.0.2"
+        "revision" : "19c1bd2ae89418a96ce57464a0ae9875014a086d",
+        "version" : "1.0.4"
       }
     },
     {
       "identity" : "nativeimage",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Vaida12345/NativeImage.git",
+      "location" : "https://www.github.com/Vaida12345/NativeImage.git",
       "state" : {
         "revision" : "7e51defc3ed3c0aa74e7bcc13101a0d60526a276",
         "version" : "1.0.0"

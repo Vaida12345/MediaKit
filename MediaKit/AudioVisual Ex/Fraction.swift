@@ -336,7 +336,7 @@ public struct Fraction: Codable, LosslessStringConvertible, Sendable, Expressibl
 //        while rhs != 0 { (lhs, rhs) = (rhs, lhs % rhs) }
 //        return lhs
         
-        // source: [Swift Numerics](https://github.com/apple/swift-numerics/blob/main/Sources/IntegerUtilities/GCD.swift)
+        // source: [Swift Numerics](https://www.github.com/apple/swift-numerics/blob/main/Sources/IntegerUtilities/GCD.swift)
         guard lhs != 0 else { return rhs }
         guard rhs != 0 else { return lhs }
         

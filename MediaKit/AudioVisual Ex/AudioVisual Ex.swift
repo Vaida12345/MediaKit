@@ -26,7 +26,15 @@ public extension AVAsset {
             let imageGenerator = AVAssetImageGenerator(asset: self)
             imageGenerator.maximumSize = .square(512)
             let time = try await CMTime(value: 0, timescale: self.load(.duration).timescale)
-            return try imageGenerator.copyCGImage(at: time, actualTime: nil)
+            return try await withCheckedThrowingContinuation { continuation in
+                imageGenerator.generateCGImageAsynchronously(for: time) { image, _, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: image!)
+                    }
+                }
+            }
         }
     }
     
@@ -160,11 +168,7 @@ public extension AVAsset {
         
         guard let exportSession = AVAssetExportSession(asset: mixComposition, presetName: AVAssetExportPresetPassthrough) else { throw MergeError.cannotCreateExportSession }
         
-        exportSession.outputURL = video.url
-        exportSession.outputFileType = container
-        exportSession.shouldOptimizeForNetworkUse = true
-        
-        await exportSession.export()
+        try await exportSession.export(to: video.url, as: container)
     }
     
     /// A set of errors as defined in the extensions for AVAsset.
@@ -219,7 +223,7 @@ public extension AVAsset {
     @available(macOS 15, iOS 18, *)
     static func convert<Element, E>(images: some ConcurrentStream<Element, E>, toVideo video: FinderItem, videoFPS: Float, colorSpace: CGColorSpace? = nil, container: AVFileType = .mov, codec: AVVideoCodecType = .hevc, getImage: @escaping @Sendable (_ item: Element) -> CGImage, getTime: (@Sendable (_ item: Element) -> CMTime)? = nil) async throws where E: Error {
         
-        let video = video.createUniquePath()
+        let video = video.generateUniquePath()
         
         let logger = Logger(subsystem: "The Support Framework", category: "AVAsset Extension")
         

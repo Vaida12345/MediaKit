@@ -7,11 +7,11 @@ A collection of extended functionalities to the media frameworks.
     
     @SupportedLanguage(swift)
     
-    @Available(macOS,    introduced: 13.0)
-    @Available(iOS,      introduced: 16.0)
-    @Available(watchOS,  introduced: 9.0)
-    @Available(tvOS,     introduced: 16.0)
-    @Available(visionOS, introduced: 1.0)
+    @Available(macOS,    introduced: 15.0)
+    @Available(iOS,      introduced: 18.0)
+    @Available(watchOS,  introduced: 11.0)
+    @Available(tvOS,     introduced: 18.0)
+    @Available(visionOS, introduced: 2.0)
 }
 
 ## Overview
@@ -23,7 +23,7 @@ The framework aims to provide additional methods for the structures defined with
 `MediaKit` uses [Swift Package Manager](https://www.swift.org/documentation/package-manager/) as its build tool. If you want to import in your own project, it's as simple as adding a `dependencies` clause to your `Package.swift`:
 ```swift
 dependencies: [
-    .package(url: "https://github.com/Vaida12345/MediaKit.git", branch: "main")
+    .package(url: "https://www.github.com/Vaida12345/MediaKit.git", branch: "main")
 ]
 ```
 and then adding the appropriate module to your target dependencies.
@@ -32,7 +32,7 @@ and then adding the appropriate module to your target dependencies.
 
 You can add this framework as a dependency to your Xcode project by clicking File -> Swift Packages -> Add Package Dependency. The package is located at:
 ```
-https://github.com/Vaida12345/MediaKit
+https://www.github.com/Vaida12345/MediaKit
 ```
 
 
