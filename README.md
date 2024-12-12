@@ -11,7 +11,7 @@ The framework aims to provide additional methods for the structures defined with
 `MediaKit` uses [Swift Package Manager](https://www.swift.org/documentation/package-manager/) as its build tool. If you want to import in your own project, it's as simple as adding a `dependencies` clause to your `Package.swift`:
 ```swift
 dependencies: [
-    .package(url: "https://www.github.com/Vaida12345/MediaKit.git", branch: "main")
+    .package(url: "https://www.github.com/Vaida12345/MediaKit", branch: "main")
 ]
 ```
 and then adding the appropriate module to your target dependencies.
