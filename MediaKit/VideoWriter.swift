@@ -50,7 +50,6 @@ public final class VideoWriter: @unchecked Sendable {
         
         // If here, AVAssetWriter exists so create AVAssetWriterInputPixelBufferAdaptor
         let sourceBufferAttributes : [String : AnyObject] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA as AnyObject,
             kCVPixelBufferWidthKey           as String: size.width                as AnyObject,
             kCVPixelBufferHeightKey          as String: size.height               as AnyObject
         ]
@@ -128,10 +127,16 @@ public final class VideoWriter: @unchecked Sendable {
                             
                             let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
                             
-                            // Create CGBitmapContext
-                            let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), space: defaultColorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)! // 32BGRA
+                            if frame.bitsPerComponent == 8 && frame.bitsPerPixel == 32,
+                               let data = frame.dataProvider?.data {
+                                memcpy(pixelData, CFDataGetBytePtr(data), Int(size.width) * Int(size.height) * 4)
+                            } else {
+                                // Create CGBitmapContext
+                                let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), space: defaultColorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                                
+                                context.draw(frame, in: drawCGRect)
+                            }
                             
-                            context.draw(frame, in: drawCGRect)
                             CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
                             
                             pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
