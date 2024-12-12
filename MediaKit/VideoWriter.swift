@@ -45,11 +45,19 @@ public final class VideoWriter: @unchecked Sendable {
     /// To cancel the video writer, cancel the parent task.
     ///
     /// - Precondition: The images produced from `yield` must match the `size` when initializing the writer.
+    ///
+    /// > Tip:
+    /// > The native video frame buffer format is:
+    /// > ```
+    /// > CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+    /// > ```
+    /// > If the frames provided are also in this format, `VideoWriter` will not need to convert between formats and can directly use the internal storage of these frames, significantly improving rendering performance.
     public func startWriting(yield: @escaping (_ index: Int) async throws -> CGImage?) async throws {
         assetWriter.add(assetWriterVideoInput)
         
         // If here, AVAssetWriter exists so create AVAssetWriterInputPixelBufferAdaptor
         let sourceBufferAttributes : [String : AnyObject] = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA as AnyObject,
             kCVPixelBufferWidthKey           as String: size.width                as AnyObject,
             kCVPixelBufferHeightKey          as String: size.height               as AnyObject
         ]
@@ -129,10 +137,11 @@ public final class VideoWriter: @unchecked Sendable {
                             
                             if frame.bitsPerComponent == 8 && frame.bitsPerPixel == 32,
                                let data = frame.dataProvider?.data {
+                                let length = CFDataGetLength(data)
                                 memcpy(pixelData, CFDataGetBytePtr(data), Int(size.width) * Int(size.height) * 4)
                             } else {
                                 // Create CGBitmapContext
-                                let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), space: defaultColorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                                let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), space: defaultColorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
                                 
                                 context.draw(frame, in: drawCGRect)
                             }
