@@ -18,19 +18,19 @@ import Essentials
 @available(macOS 15.0, iOS 18.0, tvOS 18.0, *)
 public final class VideoWriter: @unchecked Sendable {
     
-    let assetWriter: AVAssetWriter
+    private let assetWriter: AVAssetWriter
     
-    let assetWriterVideoInput: AVAssetWriterInput
+    private let assetWriterVideoInput: AVAssetWriterInput
     
-    let size: CGSize
+    private let size: CGSize
     
-    let destination: FinderItem
+    private let destination: FinderItem
     
-    let frameRate: Int
+    private let frameRate: Int
     
-    let mediaQueue = DispatchQueue(label: "app.PianoVisualizer.VideoWriter.mediaQueue")
+    private let counter = Atomic<Int>(0)
     
-    let counter = Mutex(0)
+    private let queue = DispatchQueue(label: "package.MediaKit.VideoWriter.mediaQueue")
     
     
     /// Starts writing to destination.
@@ -93,7 +93,7 @@ public final class VideoWriter: @unchecked Sendable {
             let _: Void = try await withCheckedThrowingContinuation { continuation in
                 _continuation = continuation
                 
-                assetWriterVideoInput.requestMediaDataWhenReady(on: mediaQueue) { [unowned self] in
+                assetWriterVideoInput.requestMediaDataWhenReady(on: self.queue) { [unowned self] in
                     let semaphore = DispatchSemaphore(value: 0)
                     // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
                     
@@ -110,13 +110,8 @@ public final class VideoWriter: @unchecked Sendable {
                         CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, pixelBufferPointer)
                         let pixelBuffer = pixelBufferPointer.pointee!
                         
-                        let presentationTime = self.counter.withLock { counter in
-                            CMTime(value: CMTimeValue(counter), timescale: CMTimeScale(self.frameRate))
-                        }
-                        
-                        let index = counter.withLock { counter in
-                            counter
-                        }
+                        let index = self.counter.add(1, ordering: .sequentiallyConsistent).oldValue
+                        let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(self.frameRate))
                         
                         // Draw image into context
                         defer {
@@ -137,7 +132,6 @@ public final class VideoWriter: @unchecked Sendable {
                             
                             if frame.bitsPerComponent == 8 && frame.bitsPerPixel == 32,
                                let data = frame.dataProvider?.data {
-                                let length = CFDataGetLength(data)
                                 memcpy(pixelData, CFDataGetBytePtr(data), Int(size.width) * Int(size.height) * 4)
                             } else {
                                 // Create CGBitmapContext
@@ -150,8 +144,6 @@ public final class VideoWriter: @unchecked Sendable {
                             
                             pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
                             pixelBufferPointer.deinitialize(count: 1)
-                            
-                            counter.withLock { $0 += 1 }
                         } catch {
                             continuation.resume(throwing: error)
                         }
@@ -166,7 +158,7 @@ public final class VideoWriter: @unchecked Sendable {
                 return
             }
             
-            mediaQueue.sync { }
+            self.queue.sync { }
             await assetWriter.finishWriting()
             
             guard assetWriter.error == nil else { throw assetWriter.error! }
@@ -174,7 +166,7 @@ public final class VideoWriter: @unchecked Sendable {
             nextFrameTask?.cancel()
             _continuation?.resume()
             assetWriterVideoInput.markAsFinished()
-            mediaQueue.sync { }
+            self.queue.sync { }
             
             assetWriter.finishWriting {
                 try? self.destination.removeIfExists()
