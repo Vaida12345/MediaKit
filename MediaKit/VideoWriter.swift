@@ -135,6 +135,7 @@ public final class VideoWriter: @unchecked Sendable {
                             let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
                             
                             if frame.bitsPerComponent == 8 && frame.bitsPerPixel == 32,
+                               frame.bitmapInfo.rawValue == CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
                                let data = frame.dataProvider?.data {
                                 memcpy(pixelData, CFDataGetBytePtr(data), Int(size.width) * Int(size.height) * 4)
                             } else {
