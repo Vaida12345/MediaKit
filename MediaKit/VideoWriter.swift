@@ -117,6 +117,7 @@ public final class VideoWriter: @unchecked Sendable {
                         
                         // Draw image into context
                         defer {
+                            pixelBufferPointer.deinitialize(count: 1)
                             pixelBufferPointer.deallocate()
                         }
                         
