@@ -166,7 +166,6 @@ public final class VideoWriter: @unchecked Sendable {
             nextFrameTask?.cancel()
             _continuation?.resume()
             assetWriterVideoInput.markAsFinished()
-            self.queue.sync { }
             
             assetWriter.finishWriting {
                 try? self.destination.removeIfExists()
