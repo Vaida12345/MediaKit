@@ -42,7 +42,7 @@ public final class VideoWriter: @unchecked Sendable {
     /// - term index: The index of the frame.
     /// - term returns: An image at the given index, or `nil`, indicating the end of video.
     ///
-    /// To cancel the video writer, cancel the parent task.
+    /// To cancel the video writer, cancel the parent task. The cancellation will be propagated to `yield`.
     ///
     /// - Precondition: The images produced from `yield` must match the `size` when initializing the writer.
     ///
