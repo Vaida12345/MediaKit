@@ -13,9 +13,6 @@ import FinderItem
 import Essentials
 import NativeImage
 
-
-let image = try FinderItem(at: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Others/Anime/Pictures/Mirai Kuriyama.heic").load(.cgImage)
-
 #if os(macOS)
 func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.systemFont(ofSize: 24), textColor: NSColor = .black, backgroundColor: NSColor = .white) -> CGImage? {
     // 1. Create a bitmap graphics context
@@ -54,19 +51,21 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
     //                context.scaleBy(x: 1.0, y: -1.0)
     CTFrameDraw(frame, context)
     
-    context.draw(image, in: CGRect(origin: .zero, size: size))
-    
     // 6. Generate a CGImage
     return context.makeImage()
 }
 
 
-let size = CGSize(width: 5000, height: 2000)
+let size = CGSize(width: 1920, height: 1080)
 let writer = try VideoWriter(size: size, frameRate: 120, to: FinderItem.desktopDirectory.appending(path: "test.m4v"))
 
 do {
+    var date = Date()
     try await writer.startWriting { index in
-        guard index < 200 else { return nil }
+        guard index < 10000 else { return nil }
+        
+        print(date.distanceToNow())
+        defer { date = Date() }
         return createImageWithText("\(index)", size: size)
     }
 } catch {
