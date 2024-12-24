@@ -81,13 +81,14 @@ public final class VideoWriter: @unchecked Sendable {
         nonisolated(unsafe)
         var nextFrameTask: Task<CGImage?, any Error>? = nil
         
+        let isTaskCanceled = Atomic<Bool>(false)
+        
         @Sendable func dispatchNextFrame(index: Int) -> Task<CGImage?, any Error>? {
             Task.detached {
                 try await yield(index)
             }
         }
         nextFrameTask = dispatchNextFrame(index: 0)
-        
         
         try await withTaskCancellationHandler {
             let _: Void = try await withCheckedThrowingContinuation { continuation in
@@ -101,6 +102,7 @@ public final class VideoWriter: @unchecked Sendable {
                         defer { semaphore.signal() }
                         
                         guard assetWriterVideoInput.isReadyForMoreMediaData else { return } // go on waiting
+                        guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
                         
                         // prepare buffer
                         let pixelBufferPointer = UnsafeMutablePointer<CVPixelBuffer?>.allocate(capacity: 1)
@@ -163,6 +165,7 @@ public final class VideoWriter: @unchecked Sendable {
             
             guard assetWriter.error == nil else { throw assetWriter.error! }
         } onCancel: {
+            isTaskCanceled.store(true, ordering: .sequentiallyConsistent)
             nextFrameTask?.cancel()
             _continuation?.resume()
             assetWriterVideoInput.markAsFinished()
