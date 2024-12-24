@@ -133,14 +133,25 @@ public final class VideoWriter: @unchecked Sendable {
                             CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
                             
                             let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
+                            let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
                             
                             if frame.bitsPerComponent == 8 && frame.bitsPerPixel == 32,
                                frame.bitmapInfo.rawValue == CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
+                               bytesPerRow == frame.bytesPerRow,
                                let data = frame.dataProvider?.data {
-                                memcpy(pixelData, CFDataGetBytePtr(data), Int(size.width) * Int(size.height) * 4)
+                                let length = CFDataGetLength(data)
+                                memcpy(pixelData, CFDataGetBytePtr(data), length)
                             } else {
                                 // Create CGBitmapContext
-                                let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer), space: defaultColorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)!
+                                let context = CGContext(
+                                    data: pixelData,
+                                    width: Int(size.width),
+                                    height: Int(size.height),
+                                    bitsPerComponent: 8,
+                                    bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+                                    space: defaultColorSpace,
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+                                )!
                                 
                                 context.draw(frame, in: drawCGRect)
                             }

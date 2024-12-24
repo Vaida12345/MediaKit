@@ -11,7 +11,10 @@ import PDFKit
 import DetailedDescription
 import FinderItem
 import Essentials
+import NativeImage
 
+
+let image = try FinderItem(at: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Others/Anime/Pictures/Mirai Kuriyama.heic").load(.cgImage)
 
 #if os(macOS)
 func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.systemFont(ofSize: 24), textColor: NSColor = .black, backgroundColor: NSColor = .white) -> CGImage? {
@@ -51,24 +54,23 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
     //                context.scaleBy(x: 1.0, y: -1.0)
     CTFrameDraw(frame, context)
     
+    context.draw(image, in: CGRect(origin: .zero, size: size))
+    
     // 6. Generate a CGImage
     return context.makeImage()
 }
 
 
-if #available(macOS 15.0, *) {
-    let writer = try VideoWriter(size: CGSize(width: 1920, height: 1080), frameRate: 120, to: FinderItem.desktopDirectory.appending(path: "test.m4v"))
-    
-    do {
-        try await Task.withTimeLimit(for: .seconds(2)) {
-            try await writer.startWriting { index in
-                createImageWithText("\(index)", size: CGSize(width: 1920, height: 1080))
-            }
-        }
-        
-    } catch {
-        print(error)
+let size = CGSize(width: 5000, height: 2000)
+let writer = try VideoWriter(size: size, frameRate: 120, to: FinderItem.desktopDirectory.appending(path: "test.m4v"))
+
+do {
+    try await writer.startWriting { index in
+        guard index < 200 else { return nil }
+        return createImageWithText("\(index)", size: size)
     }
-    try await Task.sleep(for: .seconds(10))
+} catch {
+    print(error)
 }
+try await Task.sleep(for: .seconds(10))
 #endif
