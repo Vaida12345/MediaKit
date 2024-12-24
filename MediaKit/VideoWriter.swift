@@ -121,6 +121,7 @@ public final class VideoWriter: @unchecked Sendable {
                         }
                         
                         do {
+                            guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
                             guard let frame = try await nextFrameTask?.value else {
                                 assetWriterVideoInput.markAsFinished()
                                 continuation.resume()
@@ -145,7 +146,6 @@ public final class VideoWriter: @unchecked Sendable {
                             CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
                             
                             pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
-                            pixelBufferPointer.deinitialize(count: 1)
                         } catch {
                             continuation.resume(throwing: error)
                         }
