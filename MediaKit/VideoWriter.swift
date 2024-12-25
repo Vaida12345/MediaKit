@@ -14,7 +14,9 @@ import FinderItem
 import Essentials
 
 
-/// A writer for writing a stream.
+/// A video writer for writing a stream of images.
+///
+/// - Experiment: It is best not ri have writers run in parallel.
 @available(macOS 15.0, iOS 18.0, tvOS 18.0, *)
 public final class VideoWriter: @unchecked Sendable {
     
@@ -40,7 +42,7 @@ public final class VideoWriter: @unchecked Sendable {
     /// - term index: The index of the frame.
     /// - term returns: An image at the given index, or `nil`, indicating the end of video.
     ///
-    /// To cancel the video writer, cancel the parent task. The cancellation will be propagated to `yield`.
+    /// To cancel the video writer, cancel the parent task. The cancellation will be propagated to `yield`. No new calls will be made after cancelation.
     ///
     /// Returns after the video is finalized.
     ///
@@ -76,12 +78,8 @@ public final class VideoWriter: @unchecked Sendable {
         let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
         
         nonisolated(unsafe)
-        var _continuation: CheckedContinuation<Void, any Error>? = nil
-        
-        nonisolated(unsafe)
         var nextFrameTask: Task<CGImage?, any Error>? = nil
         
-        let isTaskCanceled = Atomic<Bool>(false)
         let counter = Atomic<Int>(0)
         let videoState = Mutex<VideoState>(.rendering)
         let frameRate = frameRate
@@ -95,18 +93,15 @@ public final class VideoWriter: @unchecked Sendable {
         nextFrameTask = dispatchNextFrame(index: 0)
         
         try await withTaskCancellationHandler {
-            let _: Void = try await withCheckedThrowingContinuation { continuation in
-                _continuation = continuation
-                
+            let _: Void = await withCheckedContinuation { continuation in
                 assetWriterVideoInput.requestMediaDataWhenReady(on: self.queue) { [weak self] in
+                    guard videoState.withLock({ $0 == .rendering }) else { return }
                     
                     while (self?.assetWriterVideoInput.isReadyForMoreMediaData ?? false) && videoState.withLock({ $0 == .rendering }) {
                         let semaphore = DispatchSemaphore(value: 0)
                         // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
-                        
                         Task {
                             defer { semaphore.signal() }
-                            guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
                             
                             // prepare buffer
                             let pixelBufferPointer = UnsafeMutablePointer<CVPixelBuffer?>.allocate(capacity: 1)
@@ -124,16 +119,18 @@ public final class VideoWriter: @unchecked Sendable {
                             }
                             
                             do {
-                                guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
+                                guard videoState.withLock({ $0 == .rendering }) else { nextFrameTask?.cancel(); return }
+                                
                                 guard let frame = try await nextFrameTask?.value else {
                                     videoState.withLock { state in
                                         if state == .rendering {
-                                            state = .willCancel
+                                            state = .willFinish
                                         }
                                     }
                                     return
                                 }
                                 
+                                guard videoState.withLock({ $0 == .rendering }) else { nextFrameTask?.cancel(); return }
                                 nextFrameTask = dispatchNextFrame(index: index + 1)
                                 
                                 CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
@@ -166,39 +163,53 @@ public final class VideoWriter: @unchecked Sendable {
                                 pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
                             } catch {
                                 videoState.withLock { state in
-                                    switch state {
-                                    case .rendering, .willCancel:
+                                    if state == .rendering {
                                         state = .errored(error as NSError)
-                                    case .errored, .didCancel:
-                                        break
                                     }
                                 }
                             }
                         }
-                        
                         semaphore.wait()
-                    }
+                    } // end while loop
                     
                     videoState.withLock { state in
                         switch state {
                         case .rendering:
                             break
                         case .willCancel:
+                            self?.assetWriterVideoInput.markAsFinished()
                             continuation.resume()
-                            state = .didCancel
+                            state = .didCancel(nil)
                         case .errored(let error):
-                            continuation.resume(throwing: error)
-                            state = .didCancel
+                            self?.assetWriterVideoInput.markAsFinished()
+                            continuation.resume()
+                            state = .didCancel(error)
                         case .didCancel:
+                            break
+                        case .willFinish:
+                            self?.assetWriterVideoInput.markAsFinished()
+                            continuation.resume()
+                            state = .didFinish
+                        case .didFinish:
                             break
                         }
                     }
                 }
-            }
+            } // end withCheckedThrowingContinuation
             
-            if Task.isCancelled {
-                // run in on cancel
-                return
+            guard videoState.withLock({ $0.isFinished }) else {
+                assetWriter.cancelWriting()
+                
+                return try videoState.withLock { state in
+                    switch state {
+                    case .rendering, .willCancel, .errored, .willFinish, .didFinish:
+                        fatalError()
+                    case .didCancel(let error):
+                        if let error {
+                            throw error
+                        }
+                    }
+                }
             }
             
             self.queue.sync { }
@@ -208,14 +219,9 @@ public final class VideoWriter: @unchecked Sendable {
                 throw error
             }
         } onCancel: {
-            isTaskCanceled.store(true, ordering: .sequentiallyConsistent)
+            videoState.withLock { $0 = .willCancel }
             nextFrameTask?.cancel()
-            _continuation?.resume()
-            assetWriterVideoInput.markAsFinished()
-            
-            assetWriter.finishWriting {
-                try? self.destination.removeIfExists()
-            }
+            nextFrameTask = nil
         }
     }
     
@@ -224,7 +230,16 @@ public final class VideoWriter: @unchecked Sendable {
         case rendering
         case willCancel
         case errored(NSError)
-        case didCancel
+        case didCancel(NSError?)
+        case willFinish
+        case didFinish
+        
+        var isFinished: Bool {
+            switch self {
+            case .willFinish, .didFinish: true
+            default: false
+            }
+        }
     }
     
     

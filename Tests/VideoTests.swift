@@ -13,6 +13,7 @@ import DetailedDescription
 import FinderItem
 import Essentials
 import NativeImage
+import Synchronization
 
 
 @Suite(.serialized)
@@ -96,6 +97,7 @@ final class VideoTests {
     @Test(arguments: [.square(1), .square(10), .square(100), .square(1000), CGSize(width: 8192, height: 4320)])
     func renderTest(size: CGSize) async throws {
         let dest = try await render(size: size)
+        #expect(dest.exists)
         try dest.remove()
     }
     
@@ -107,8 +109,9 @@ final class VideoTests {
     }
     
     @Test
-    func renderWithCancel() async throws {
-        let writer = try VideoWriter(size: CGSize(width: 1920, height: 1080), frameRate: 120, to: FinderItem.desktopDirectory.appending(path: "test.m4v"))
+    func renderWithTimedCancel() async throws {
+        let dest = destination/"renderWithTimedCancel.mov"
+        let writer = try VideoWriter(size: CGSize(width: 1920, height: 1080), frameRate: 120, to: dest)
         
         await #expect(throws: TimeoutError.self) {
             try await Task.withTimeLimit(for: .seconds(2)) {
@@ -117,6 +120,45 @@ final class VideoTests {
                 }
             }
         }
+        #expect(!dest.exists)
     }
+    
+    @Test(arguments: [Int](0..<20))
+    func renderWithCancel(i: Int) async throws {
+        let dest = destination/"renderWithCancel \(i).mov"
+        let writer = try VideoWriter(size: CGSize(width: 1920, height: 1080), frameRate: 120, to: dest)
+        
+        let isTaskCanceled = Atomic<Bool>(false)
+        let task = Task.detached {
+            try await writer.startWriting { index in
+                if isTaskCanceled.load(ordering: .sequentiallyConsistent) {
+                    #expect(Bool(false), "Writing handler called after cancellation!")
+                }
+                return self.createImageWithText("\(index)", size: CGSize(width: 1920, height: 1080))
+            }
+        }
+        let duration = Double.random(in: 0...0.5)
+        try await Task.sleep(for: .seconds(duration))
+        task.cancel()
+        isTaskCanceled.store(true, ordering: .sequentiallyConsistent)
+        try await Task.sleep(for: .seconds(0.1))
+        #expect(!dest.exists)
+    }
+    
+    @Test
+    func renderWithError() async throws {
+        let dest = destination/"renderWithError.mov"
+        let writer = try VideoWriter(size: CGSize(width: 1920, height: 1080), frameRate: 120, to: dest)
+        
+        await #expect(throws: self.dummyError) {
+            try await writer.startWriting { index in
+                throw self.dummyError
+            }
+        }
+        #expect(!dest.exists)
+    }
+    
+    
+    let dummyError = NSError(domain: "", code: 0)
 
 }
