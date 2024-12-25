@@ -73,8 +73,5 @@ func render(size: CGSize) async throws {
     }
 }
 
-//try await render(size: .square(1))
-
-
-print("done")
+try await render(size: .square(1))
 #endif

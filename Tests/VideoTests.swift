@@ -15,7 +15,7 @@ import Essentials
 import NativeImage
 
 
-@Suite
+@Suite(.serialized)
 final class VideoTests {
     
     let image: CGImage

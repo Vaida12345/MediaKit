@@ -83,6 +83,7 @@ public final class VideoWriter: @unchecked Sendable {
         
         let isTaskCanceled = Atomic<Bool>(false)
         let counter = Atomic<Int>(0)
+        let videoState = Mutex<VideoState>(.rendering)
         let frameRate = frameRate
         let size = self.size
         
@@ -98,9 +99,8 @@ public final class VideoWriter: @unchecked Sendable {
                 _continuation = continuation
                 
                 assetWriterVideoInput.requestMediaDataWhenReady(on: self.queue) { [weak self] in
-                    let _videoIsFinished = Atomic<Bool>(false)
                     
-                    while (self?.assetWriterVideoInput.isReadyForMoreMediaData ?? false) && !_videoIsFinished.load(ordering: .sequentiallyConsistent) {
+                    while (self?.assetWriterVideoInput.isReadyForMoreMediaData ?? false) && videoState.withLock({ $0 == .rendering }) {
                         let semaphore = DispatchSemaphore(value: 0)
                         // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
                         
@@ -126,11 +126,7 @@ public final class VideoWriter: @unchecked Sendable {
                             do {
                                 guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
                                 guard let frame = try await nextFrameTask?.value else {
-                                    if !_videoIsFinished.load(ordering: .sequentiallyConsistent) {
-                                        self?.assetWriterVideoInput.markAsFinished()
-                                        continuation.resume()
-                                        _videoIsFinished.store(true, ordering: .sequentiallyConsistent)
-                                    }
+                                    videoState.withLock({ $0 = .willCancel })
                                     return
                                 }
                                 
@@ -165,12 +161,26 @@ public final class VideoWriter: @unchecked Sendable {
                                 CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
                                 pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
                             } catch {
-                                continuation.resume(throwing: error)
-                                _videoIsFinished.store(true, ordering: .sequentiallyConsistent)
+                                videoState.withLock({ $0 = .errored(error as NSError) })
                             }
                         }
                         
                         semaphore.wait()
+                    }
+                    
+                    videoState.withLock { state in
+                        switch state {
+                        case .rendering:
+                            break
+                        case .willCancel:
+                            continuation.resume()
+                            state = .didCancel
+                        case .errored(let error):
+                            continuation.resume(throwing: error)
+                            state = .didCancel
+                        case .didCancel:
+                            break
+                        }
                     }
                 }
             }
@@ -196,6 +206,14 @@ public final class VideoWriter: @unchecked Sendable {
                 try? self.destination.removeIfExists()
             }
         }
+    }
+    
+    
+    private enum VideoState: Equatable {
+        case rendering
+        case willCancel
+        case errored(NSError)
+        case didCancel
     }
     
     
