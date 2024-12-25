@@ -126,7 +126,11 @@ public final class VideoWriter: @unchecked Sendable {
                             do {
                                 guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
                                 guard let frame = try await nextFrameTask?.value else {
-                                    videoState.withLock({ $0 = .willCancel })
+                                    videoState.withLock { state in
+                                        if state == .rendering {
+                                            state = .willCancel
+                                        }
+                                    }
                                     return
                                 }
                                 
@@ -161,7 +165,14 @@ public final class VideoWriter: @unchecked Sendable {
                                 CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
                                 pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
                             } catch {
-                                videoState.withLock({ $0 = .errored(error as NSError) })
+                                videoState.withLock { state in
+                                    switch state {
+                                    case .rendering, .willCancel:
+                                        state = .errored(error as NSError)
+                                    case .errored, .didCancel:
+                                        break
+                                    }
+                                }
                             }
                         }
                         
