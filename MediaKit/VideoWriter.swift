@@ -44,6 +44,8 @@ public final class VideoWriter: @unchecked Sendable {
     ///
     /// To cancel the video writer, cancel the parent task. The cancellation will be propagated to `yield`.
     ///
+    /// Returns after the video is finalized.
+    ///
     /// - Precondition: The images produced from `yield` must match the `size` when initializing the writer.
     ///
     /// > Tip:
@@ -69,8 +71,8 @@ public final class VideoWriter: @unchecked Sendable {
         assetWriter.startWriting()
         assetWriter.startSession(atSourceTime: CMTime.zero)
         
-        guard pixelBufferAdaptor.pixelBufferPool != nil else { throw ConvertImagesToVideoError.pixelBufferPoolNil }
-        
+        guard let _pixelBufferPool = pixelBufferAdaptor.pixelBufferPool else { throw WriteError.pixelBufferPoolNil }
+        nonisolated(unsafe) let pixelBufferPool = _pixelBufferPool
         
         let drawCGRect = CGRect(x: 0, y: 0, width: Int(size.width), height: Int(size.height))
         let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
@@ -95,76 +97,78 @@ public final class VideoWriter: @unchecked Sendable {
                 _continuation = continuation
                 
                 assetWriterVideoInput.requestMediaDataWhenReady(on: self.queue) { [unowned self] in
-                    let semaphore = DispatchSemaphore(value: 0)
-                    // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
+                    let _videoIsFinished = Atomic<Bool>(false)
                     
-                    Task {
-                        defer { semaphore.signal() }
+                    while self.assetWriterVideoInput.isReadyForMoreMediaData && !_videoIsFinished.load(ordering: .sequentiallyConsistent) {
+                        let semaphore = DispatchSemaphore(value: 0)
+                        // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
                         
-                        guard assetWriterVideoInput.isReadyForMoreMediaData else { return } // go on waiting
-                        guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
-                        
-                        // prepare buffer
-                        let pixelBufferPointer = UnsafeMutablePointer<CVPixelBuffer?>.allocate(capacity: 1)
-                        
-                        let pixelBufferPool = pixelBufferAdaptor.pixelBufferPool!
-                        
-                        CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, pixelBufferPointer)
-                        let pixelBuffer = pixelBufferPointer.pointee!
-                        
-                        let index = self.counter.add(1, ordering: .sequentiallyConsistent).oldValue
-                        let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(self.frameRate))
-                        
-                        // Draw image into context
-                        defer {
-                            pixelBufferPointer.deinitialize(count: 1)
-                            pixelBufferPointer.deallocate()
-                        }
-                        
-                        do {
+                        Task {
+                            defer { semaphore.signal() }
                             guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
-                            guard let frame = try await nextFrameTask?.value else {
-                                assetWriterVideoInput.markAsFinished()
-                                continuation.resume()
-                                return
+                            
+                            // prepare buffer
+                            let pixelBufferPointer = UnsafeMutablePointer<CVPixelBuffer?>.allocate(capacity: 1)
+                            
+                            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, pixelBufferPointer)
+                            let pixelBuffer = pixelBufferPointer.pointee!
+                            
+                            let index = self.counter.add(1, ordering: .sequentiallyConsistent).oldValue
+                            let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(self.frameRate))
+                            
+                            // Draw image into context
+                            defer {
+                                pixelBufferPointer.deinitialize(count: 1)
+                                pixelBufferPointer.deallocate()
                             }
-                            nextFrameTask = dispatchNextFrame(index: index + 1)
                             
-                            CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
-                            
-                            let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
-                            let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-                            
-                            if frame.bitsPerComponent == 8 && frame.bitsPerPixel == 32,
-                               frame.bitmapInfo.rawValue == CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
-                               bytesPerRow == frame.bytesPerRow,
-                               let data = frame.dataProvider?.data {
-                                let length = CFDataGetLength(data)
-                                memcpy(pixelData, CFDataGetBytePtr(data), length)
-                            } else {
-                                // Create CGBitmapContext
-                                let context = CGContext(
-                                    data: pixelData,
-                                    width: Int(size.width),
-                                    height: Int(size.height),
-                                    bitsPerComponent: 8,
-                                    bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
-                                    space: defaultColorSpace,
-                                    bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-                                )!
+                            do {
+                                guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
+                                guard let frame = try await nextFrameTask?.value else {
+                                    assetWriterVideoInput.markAsFinished()
+                                    continuation.resume()
+                                    _videoIsFinished.store(true, ordering: .sequentiallyConsistent)
+                                    return
+                                }
                                 
-                                context.draw(frame, in: drawCGRect)
+                                nextFrameTask = dispatchNextFrame(index: index + 1)
+                                
+                                CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
+                                
+                                let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
+                                let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+                                
+                                if frame.bitsPerComponent == 8 && frame.bitsPerPixel == 32,
+                                   frame.bitmapInfo.rawValue == CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
+                                   bytesPerRow == frame.bytesPerRow,
+                                   let data = frame.dataProvider?.data {
+                                    let length = CFDataGetLength(data)
+                                    memcpy(pixelData, CFDataGetBytePtr(data), length)
+                                } else {
+                                    // Create CGBitmapContext
+                                    let context = CGContext(
+                                        data: pixelData,
+                                        width: Int(size.width),
+                                        height: Int(size.height),
+                                        bitsPerComponent: 8,
+                                        bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+                                        space: defaultColorSpace,
+                                        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+                                    )!
+                                    
+                                    context.draw(frame, in: drawCGRect)
+                                }
+                                
+                                CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
+                                pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
+                            } catch {
+                                continuation.resume(throwing: error)
+                                _videoIsFinished.store(true, ordering: .sequentiallyConsistent)
                             }
-                            
-                            CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
-                            
-                            pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
-                        } catch {
-                            continuation.resume(throwing: error)
                         }
+                        
+                        semaphore.wait()
                     }
-                    
-                    semaphore.wait()
                 }
             }
             
@@ -176,7 +180,9 @@ public final class VideoWriter: @unchecked Sendable {
             self.queue.sync { }
             await assetWriter.finishWriting()
             
-            guard assetWriter.error == nil else { throw assetWriter.error! }
+            if let error = assetWriter.error {
+                throw error
+            }
         } onCancel: {
             isTaskCanceled.store(true, ordering: .sequentiallyConsistent)
             nextFrameTask?.cancel()
@@ -201,6 +207,8 @@ public final class VideoWriter: @unchecked Sendable {
     ///   - container: The file format.
     ///   - codec: The codec used.
     public init(size: CGSize, frameRate: Int, to destination: FinderItem, container: AVFileType = .mov, codec: AVVideoCodecType = .hevc) throws {
+        guard size.width <= 8192 && size.height <= 4320 else { throw WriteError.videoSizeTooLarge(size) }
+        
         self.size = size
         self.frameRate = frameRate
         self.destination = destination
@@ -289,26 +297,17 @@ public final class VideoWriter: @unchecked Sendable {
         }
     }
     
-    private enum ConvertImagesToVideoError: LocalizedError, CustomStringConvertible {
+    public enum WriteError: GenericError {
         
         case pixelBufferPoolNil
+        case videoSizeTooLarge(CGSize)
         
-        case cannotCreateCGContext
-        
-        
-        var description: String {
-            "\(errorDescription!): \(failureReason!)"
-        }
-        
-        
-        var errorDescription: String? { "Convert images to video error" }
-        
-        var failureReason: String? {
+        public var message: String {
             switch self {
             case .pixelBufferPoolNil:
-                return "Pixel buffer pool is nil after starting writing session, this typically means you do not have permission to write to the given file"
-            case .cannotCreateCGContext:
-                return "Cannot create CGContext for a frame"
+                "Pixel buffer pool is nil after starting writing session, this typically means you do not have permission to write to the given file"
+            case .videoSizeTooLarge(let size):
+                "HEVC codec supports the resolutions up to 8192×4320, the given size, \(Int(size.width))×\(Int(size.height)), is too large"
             }
         }
         

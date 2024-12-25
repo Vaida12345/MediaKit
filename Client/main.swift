@@ -13,6 +13,9 @@ import FinderItem
 import Essentials
 import NativeImage
 
+
+let image = try FinderItem(at: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Others/Anime/Pictures/Mirai Kuriyama.heic").load(.cgImage)
+
 #if os(macOS)
 func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.systemFont(ofSize: 24), textColor: NSColor = .black, backgroundColor: NSColor = .white) -> CGImage? {
     // 1. Create a bitmap graphics context
@@ -51,25 +54,34 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
     //                context.scaleBy(x: 1.0, y: -1.0)
     CTFrameDraw(frame, context)
     
+    context.draw(image, in: CGRect(origin: .zero, size: size))
+    
     // 6. Generate a CGImage
     return context.makeImage()
 }
 
+let destination: FinderItem = .desktopDirectory/"test"
+try destination.makeDirectory()
 
-let size = CGSize(width: 1920, height: 1080)
-let writer = try VideoWriter(size: size, frameRate: 120, to: FinderItem.desktopDirectory.appending(path: "test.m4v"))
-
-do {
-    var date = Date()
+func render(size: CGSize) async throws {
+    let writer = try VideoWriter(size: size, frameRate: 600, to: destination/"\(size).mov")
+    
     try await writer.startWriting { index in
-        guard index < 10000 else { return nil }
+        guard index < 100 else { return nil }
         
-        print(date.distanceToNow())
-        defer { date = Date() }
         return createImageWithText("\(index)", size: size)
     }
-} catch {
-    print(error)
 }
-try await Task.sleep(for: .seconds(10))
+
+try await render(size: .square(1))
+try await render(size: .square(10))
+try await render(size: .square(100))
+try await render(size: .square(1000))
+
+try await render(size: CGSize(width: 5000, height: 2000))
+try await render(size: CGSize(width: 8192, height: 4320))
+//try await render(size: .square(10000))
+
+
+print("done")
 #endif
