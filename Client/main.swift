@@ -64,7 +64,7 @@ let destination: FinderItem = .desktopDirectory/"test"
 try destination.makeDirectory()
 
 func render(size: CGSize) async throws {
-    let writer = try VideoWriter(size: size, frameRate: 600, to: destination/"\(size).mov")
+    let writer = try VideoWriter(size: size, frameRate: 25, to: destination/"\(size).mov")
     
     try await writer.startWriting { index in
         guard index < 100 else { return nil }
@@ -73,14 +73,7 @@ func render(size: CGSize) async throws {
     }
 }
 
-try await render(size: .square(1))
-try await render(size: .square(10))
-try await render(size: .square(100))
-try await render(size: .square(1000))
-
-try await render(size: CGSize(width: 5000, height: 2000))
-try await render(size: CGSize(width: 8192, height: 4320))
-//try await render(size: .square(10000))
+//try await render(size: .square(1))
 
 
 print("done")

@@ -28,8 +28,6 @@ public final class VideoWriter: @unchecked Sendable {
     
     private let frameRate: Int
     
-    private let counter = Atomic<Int>(0)
-    
     private let queue = DispatchQueue(label: "package.MediaKit.VideoWriter.mediaQueue")
     
     
@@ -84,6 +82,9 @@ public final class VideoWriter: @unchecked Sendable {
         var nextFrameTask: Task<CGImage?, any Error>? = nil
         
         let isTaskCanceled = Atomic<Bool>(false)
+        let counter = Atomic<Int>(0)
+        let frameRate = frameRate
+        let size = self.size
         
         @Sendable func dispatchNextFrame(index: Int) -> Task<CGImage?, any Error>? {
             Task.detached {
@@ -96,10 +97,10 @@ public final class VideoWriter: @unchecked Sendable {
             let _: Void = try await withCheckedThrowingContinuation { continuation in
                 _continuation = continuation
                 
-                assetWriterVideoInput.requestMediaDataWhenReady(on: self.queue) { [unowned self] in
+                assetWriterVideoInput.requestMediaDataWhenReady(on: self.queue) { [weak self] in
                     let _videoIsFinished = Atomic<Bool>(false)
                     
-                    while self.assetWriterVideoInput.isReadyForMoreMediaData && !_videoIsFinished.load(ordering: .sequentiallyConsistent) {
+                    while (self?.assetWriterVideoInput.isReadyForMoreMediaData ?? false) && !_videoIsFinished.load(ordering: .sequentiallyConsistent) {
                         let semaphore = DispatchSemaphore(value: 0)
                         // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
                         
@@ -113,8 +114,8 @@ public final class VideoWriter: @unchecked Sendable {
                             CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, pixelBufferPointer)
                             let pixelBuffer = pixelBufferPointer.pointee!
                             
-                            let index = self.counter.add(1, ordering: .sequentiallyConsistent).oldValue
-                            let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(self.frameRate))
+                            let index = counter.add(1, ordering: .sequentiallyConsistent).oldValue
+                            let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(frameRate))
                             
                             // Draw image into context
                             defer {
@@ -125,7 +126,7 @@ public final class VideoWriter: @unchecked Sendable {
                             do {
                                 guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
                                 guard let frame = try await nextFrameTask?.value else {
-                                    assetWriterVideoInput.markAsFinished()
+                                    self?.assetWriterVideoInput.markAsFinished()
                                     continuation.resume()
                                     _videoIsFinished.store(true, ordering: .sequentiallyConsistent)
                                     return
@@ -297,7 +298,7 @@ public final class VideoWriter: @unchecked Sendable {
         }
     }
     
-    public enum WriteError: GenericError {
+    public enum WriteError: GenericError, Equatable {
         
         case pixelBufferPoolNil
         case videoSizeTooLarge(CGSize)
