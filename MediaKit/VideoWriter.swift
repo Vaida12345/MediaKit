@@ -126,9 +126,11 @@ public final class VideoWriter: @unchecked Sendable {
                             do {
                                 guard !isTaskCanceled.load(ordering: .sequentiallyConsistent) else { return }
                                 guard let frame = try await nextFrameTask?.value else {
-                                    self?.assetWriterVideoInput.markAsFinished()
-                                    continuation.resume()
-                                    _videoIsFinished.store(true, ordering: .sequentiallyConsistent)
+                                    if !_videoIsFinished.load(ordering: .sequentiallyConsistent) {
+                                        self?.assetWriterVideoInput.markAsFinished()
+                                        continuation.resume()
+                                        _videoIsFinished.store(true, ordering: .sequentiallyConsistent)
+                                    }
                                     return
                                 }
                                 
