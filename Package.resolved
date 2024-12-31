@@ -1,5 +1,5 @@
 {
-  "originHash" : "be29026c79f0046b3f037b3905c2336a031e1d8ae5e092571c466e8765495946",
+  "originHash" : "2e610b577780c1c550e42e20c5903106e2f3fbb0df46762ce7cbc0ed2967e6f3",
   "pins" : [
     {
       "identity" : "concurrentstream",
@@ -24,17 +24,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://www.github.com/Vaida12345/Essentials",
       "state" : {
-        "revision" : "3449427020cb41b83a730832984324fc1270d7c1",
-        "version" : "1.0.15"
+        "revision" : "0a6daefd3952c0c48b17a03d3bbcf67f3aa03cef",
+        "version" : "1.0.17"
       }
     },
     {
       "identity" : "finderitem",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/FinderItem.git",
+      "location" : "https://www.github.com/Vaida12345/FinderItem",
       "state" : {
-        "revision" : "77d80ab005f426634ad7abb342cef801ddfa4269",
-        "version" : "1.0.5"
+        "revision" : "6a7f5076619a0c368835898bdf5162b90faaa93b",
+        "version" : "1.0.10"
       }
     },
     {

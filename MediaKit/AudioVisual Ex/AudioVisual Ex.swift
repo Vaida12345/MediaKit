@@ -14,6 +14,7 @@ import FinderItem
 import ConcurrentStream
 import Synchronization
 import NativeImage
+import Essentials
 
 
 public extension AVAsset {
@@ -157,8 +158,6 @@ public extension AVAsset {
         try await mutableCompositionAudioTrack.first?.insertTimeRange(CMTimeRange(start: .zero, duration: aAudioAssetTrack.load(.timeRange).duration), of: aAudioAssetTrack, at: .zero)
         videoTrack.preferredTransform = try await aVideoAssetTrack.load(.preferredTransform)
         
-        try video.removeIfExists()
-        
         try await totalVideoCompositionInstruction.timeRange = CMTimeRange(start: .zero, duration: aVideoAssetTrack.load(.timeRange).duration)
         
         let mutableVideoComposition: AVMutableVideoComposition = AVMutableVideoComposition()
@@ -168,11 +167,14 @@ public extension AVAsset {
         
         guard let exportSession = AVAssetExportSession(asset: mixComposition, presetName: AVAssetExportPresetPassthrough) else { throw MergeError.cannotCreateExportSession }
         
-        try await exportSession.export(to: video.url, as: container)
+        let temp = try FinderItem.temporaryDirectory(intent: .discardable)
+        try await exportSession.export(to: temp.url, as: container)
+        try video.remove()
+        try temp.move(to: video.url)
     }
     
     /// A set of errors as defined in the extensions for AVAsset.
-    private enum MergeError: LocalizedError {
+    enum MergeError: GenericError {
         
         case cannotReadFile(path: URL)
         case cannotReadContentsOfFile(path: URL)
@@ -183,9 +185,7 @@ public extension AVAsset {
         case cannotCreateExportSession
         
         
-        var errorDescription: String? { "Merge video with audio error" }
-        
-        var failureReason: String? {
+        public var message: String {
             switch self {
             case .cannotReadFile(let path):
                 return "Cannot read file at \(path)."

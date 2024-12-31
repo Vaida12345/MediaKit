@@ -98,6 +98,7 @@ final class VideoTests {
     func renderTest(size: CGSize) async throws {
         let dest = try await render(size: size)
         #expect(dest.exists)
+        try await #expect(dest.load(.avAsset)?.frameCount == 100)
         try dest.remove()
     }
     

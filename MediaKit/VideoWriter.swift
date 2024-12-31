@@ -16,7 +16,7 @@ import Essentials
 
 /// A video writer for writing a stream of images.
 ///
-/// - Experiment: It is best not ri have writers run in parallel.
+/// - Experiment: It is best not to have writers run in parallel.
 @available(macOS 15.0, iOS 18.0, tvOS 18.0, *)
 public final class VideoWriter: @unchecked Sendable {
     
