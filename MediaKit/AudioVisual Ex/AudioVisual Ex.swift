@@ -167,7 +167,8 @@ public extension AVAsset {
         
         guard let exportSession = AVAssetExportSession(asset: mixComposition, presetName: AVAssetExportPresetPassthrough) else { throw MergeError.cannotCreateExportSession }
         
-        let temp = try FinderItem.temporaryDirectory(intent: .discardable)
+        let temp = try FinderItem.temporaryDirectory(intent: .discardable)/video.name
+        try temp.removeIfExists()
         try await exportSession.export(to: temp.url, as: container)
         try video.remove()
         try temp.move(to: video.url)
