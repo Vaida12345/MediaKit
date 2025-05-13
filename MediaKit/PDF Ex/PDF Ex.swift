@@ -6,7 +6,6 @@
 //  Copyright © 2019 - 2024 Vaida. All rights reserved.
 //
 
-
 #if canImport(PDFKit)
 import PDFKit
 import UniformTypeIdentifiers
@@ -14,6 +13,7 @@ import FinderItem
 import ConcurrentStream
 import Essentials
 import NativeImage
+import Optimization
 
 
 public extension PDFDocument {
@@ -163,8 +163,8 @@ public extension PDFDocument {
     /// Extract images from the given pdf.
     func extractImages() async -> some ConcurrentStream<CGImage, any Error> {
         await (0..<self.pageCount).stream.flatMap { i in
-            var queue = Queue<CGPDFPageWrapper.Object>()
-            try queue.enqueue(.dictionary(self[i].wrapper.dictionary))
+            var queue = RingBuffer<CGPDFPageWrapper.Object>()
+            try queue.append(.dictionary(self[i].wrapper.dictionary))
             
             var streams: [CGPDFPageWrapper.Stream] = []
             
@@ -172,13 +172,13 @@ public extension PDFDocument {
                 switch next {
                 case .array(let array):
                     for i in array {
-                        queue.enqueue(i)
+                        queue.append(i)
                     }
                 case .stream(let stream):
                     streams.append(stream)
                 case .dictionary(let dictionary):
                     for (_, value) in dictionary {
-                        queue.enqueue(value)
+                        queue.append(value)
                     }
                 default:
                     continue
