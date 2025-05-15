@@ -12,6 +12,7 @@ import MetalKit
 import Synchronization
 import FinderItem
 import Essentials
+import Accelerate
 
 
 /// A video writer for writing a stream of images.
@@ -33,6 +34,99 @@ public final class VideoWriter: @unchecked Sendable {
     private let queue = DispatchQueue(label: "package.MediaKit.VideoWriter.mediaQueue")
     
     
+    /// Copies or converts a CGImage into a CVPixelBuffer in BGRA8, premultiplied-alpha.
+    /// Checks if the CGImage matches the desired format; if so, uses memcpy.
+    /// Otherwise, uses vImage for color/format conversion.
+    ///
+    /// - Parameters:
+    ///   - source:       The source CGImage.
+    ///   - pixelBuffer:  The target CVPixelBuffer (already allocated).
+    ///   - colorSpace:   The color space that you want in the pixel buffer.
+    ///
+    private static func copyOrConvertCGImage(
+        _ source: CGImage,
+        to pixelBuffer: CVPixelBuffer,
+        colorSpace: CGColorSpace
+    ) throws {
+        // 2. Lock the base address before modifying.
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        
+        defer {
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+        }
+        
+        let destBaseAddress = CVPixelBufferGetBaseAddress(pixelBuffer)!
+        
+        let destBytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let width  = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        
+        // 3. If the CGImage is already in 8-bit BGRA premultiplied-first, little-endian,
+        //    and matches the row bytes, we can just do a raw copy.
+        if  source.bitsPerComponent == 8,
+            source.bitsPerPixel == 32,
+            source.bitmapInfo.rawValue == CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
+            source.bytesPerRow == destBytesPerRow,
+            let data = source.dataProvider?.data {
+            
+            let length = CFDataGetLength(data)
+            memcpy(destBaseAddress, CFDataGetBytePtr(data), length)
+            return
+        }
+        
+        // 4. Otherwise, use Accelerate/vImage to convert from the CGImage format
+        //    into the pixel buffer’s format.
+        // Create vImage format descriptors for source and destination.
+        var srcFormat = vImage_CGImageFormat(cgImage: source)!
+        let dstFormat = vImageCVImageFormat.make(format: .format32BGRA, colorSpace: colorSpace, alphaIsOpaqueHint: false)!
+        
+        // Prepare a vImage buffer for the source image.
+        var srcBuffer = vImage_Buffer()
+        defer {
+            free(srcBuffer.data)
+        }
+        
+        // Initialize that buffer with the CGImage’s pixels.
+        let initError = vImageBuffer_InitWithCGImage(
+            &srcBuffer,
+            &srcFormat,
+            nil,
+            source,
+            vImage_Flags(kvImageNoFlags)
+        )
+        guard initError == kvImageNoError else { throw vImage.Error(vImageError: initError) }
+        
+        // Prepare a vImage buffer pointing directly at the CVPixelBuffer’s memory.
+        var dstBuffer = vImage_Buffer(
+            data: destBaseAddress,
+            height: vImagePixelCount(height),
+            width: vImagePixelCount(width),
+            rowBytes: destBytesPerRow
+        )
+        
+        // Create a converter that handles any needed color or alpha transformations.
+        var converterError: Int = 0
+        guard let converter = vImageConverter_CreateForCGToCVImageFormat(
+            &srcFormat,
+            dstFormat,
+            nil,
+            vImage_Flags(kvImagePrintDiagnosticsToConsole),
+            &converterError
+        ) else {
+            throw vImage.Error(vImageError: converterError)
+        }
+        
+        // Run the conversion.
+        let convertError = vImageConvert_AnyToAny(
+            converter.takeRetainedValue(),
+            &srcBuffer,
+            &dstBuffer,
+            nil,
+            vImage_Flags(kvImageNoFlags)
+        )
+        guard convertError == kvImageNoError else { throw vImage.Error(vImageError: convertError) }
+    }
+    
     /// Starts writing to destination.
     ///
     /// - Parameters:
@@ -51,9 +145,11 @@ public final class VideoWriter: @unchecked Sendable {
     /// > Tip:
     /// > The native video frame buffer format is:
     /// > ```
-    /// > CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+    /// > CGImageAlphaInfo.premultipliedFirst | CGBitmapInfo.byteOrder32Little
     /// > ```
-    /// > If the frames provided are also in this format, `VideoWriter` will not need to convert between formats and can directly use the internal storage of these frames, significantly improving rendering performance.
+    /// > with `bitsPerComponent = 8`, and `bitsPerPixel = 32`
+    /// >
+    /// > If the frames provided are also in this format, `VideoWriter` won't need to convert between formats and can directly use the internal storage of these frames, significantly improving rendering performance.
     public func startWriting(yield: @escaping (_ index: Int) async throws -> CGImage?) async throws {
         assetWriter.add(assetWriterVideoInput)
         
@@ -74,7 +170,6 @@ public final class VideoWriter: @unchecked Sendable {
         guard let _pixelBufferPool = pixelBufferAdaptor.pixelBufferPool else { throw WriteError.pixelBufferPoolNil }
         nonisolated(unsafe) let pixelBufferPool = _pixelBufferPool
         
-        let drawCGRect = CGRect(x: 0, y: 0, width: Int(size.width), height: Int(size.height))
         let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
         
         nonisolated(unsafe)
@@ -83,7 +178,6 @@ public final class VideoWriter: @unchecked Sendable {
         let counter = Atomic<Int>(0)
         let videoState = Mutex<VideoState>(.rendering)
         let frameRate = frameRate
-        let size = self.size
         
         @Sendable func dispatchNextFrame(index: Int) -> Task<CGImage?, any Error>? {
             Task.detached {
@@ -133,33 +227,7 @@ public final class VideoWriter: @unchecked Sendable {
                                 guard videoState.withLock({ $0 == .rendering }) else { nextFrameTask?.cancel(); return }
                                 nextFrameTask = dispatchNextFrame(index: index + 1)
                                 
-                                CVPixelBufferLockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
-                                
-                                let pixelData = CVPixelBufferGetBaseAddress(pixelBuffer)
-                                let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-                                
-                                if frame.bitsPerComponent == 8 && frame.bitsPerPixel == 32,
-                                   frame.bitmapInfo.rawValue == CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
-                                   bytesPerRow == frame.bytesPerRow,
-                                   let data = frame.dataProvider?.data {
-                                    let length = CFDataGetLength(data)
-                                    memcpy(pixelData, CFDataGetBytePtr(data), length)
-                                } else {
-                                    // Create CGBitmapContext
-                                    let context = CGContext(
-                                        data: pixelData,
-                                        width: Int(size.width),
-                                        height: Int(size.height),
-                                        bitsPerComponent: 8,
-                                        bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
-                                        space: defaultColorSpace,
-                                        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-                                    )!
-                                    
-                                    context.draw(frame, in: drawCGRect)
-                                }
-                                
-                                CVPixelBufferUnlockBaseAddress(pixelBuffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
+                                try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer, colorSpace: defaultColorSpace)
                                 pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
                             } catch {
                                 videoState.withLock { state in

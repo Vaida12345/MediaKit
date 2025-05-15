@@ -23,7 +23,7 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
     let context = CGContext(data: nil,
                             width: Int(size.width),
                             height: Int(size.height),
-                            bitsPerComponent: 8,
+                            bitsPerComponent: 16,
                             bytesPerRow: 0,
                             space: colorSpace,
                             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
@@ -73,5 +73,5 @@ func render(size: CGSize) async throws {
     }
 }
 
-try await render(size: .square(1))
+try await render(size: .square(1000))
 #endif
