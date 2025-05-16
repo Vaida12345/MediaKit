@@ -12,7 +12,7 @@ import CoreGraphics
 
 extension CGPDFPageWrapper {
     
-    public struct Array: RandomAccessCollection, CustomStringConvertible, CustomDetailedStringConvertible {
+    public struct Array: RandomAccessCollection, CustomStringConvertible, DetailedStringConvertible {
         
         public let count: Int
         

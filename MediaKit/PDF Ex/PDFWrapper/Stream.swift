@@ -14,7 +14,7 @@ import OSLog
 
 extension CGPDFPageWrapper {
     
-    public struct Stream: CustomStringConvertible, CustomDetailedStringConvertible {
+    public struct Stream: CustomStringConvertible, DetailedStringConvertible {
         
         public let dictionary: CGPDFPageWrapper.Dictionary
         

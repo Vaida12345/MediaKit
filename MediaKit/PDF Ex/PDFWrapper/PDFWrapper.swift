@@ -11,7 +11,7 @@ import CoreGraphics
 
 
 /// PDF Reading Wrapper.
-public struct CGPDFPageWrapper: CustomStringConvertible, CustomDetailedStringConvertible {
+public struct CGPDFPageWrapper: CustomStringConvertible, DetailedStringConvertible {
     
     let source: CGPDFPage
     

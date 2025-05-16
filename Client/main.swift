@@ -23,7 +23,7 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
     let context = CGContext(data: nil,
                             width: Int(size.width),
                             height: Int(size.height),
-                            bitsPerComponent: 16,
+                            bitsPerComponent: 8,
                             bytesPerRow: 0,
                             space: colorSpace,
                             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
@@ -54,7 +54,7 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
     //                context.scaleBy(x: 1.0, y: -1.0)
     CTFrameDraw(frame, context)
     
-    context.draw(image, in: CGRect(origin: .zero, size: size))
+//    context.draw(image, in: CGRect(origin: .zero, size: size))
     
     // 6. Generate a CGImage
     return context.makeImage()
@@ -73,5 +73,5 @@ func render(size: CGSize) async throws {
     }
 }
 
-try await render(size: .square(1000))
+try await render(size: .square(500))
 #endif

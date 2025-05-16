@@ -12,7 +12,7 @@ import CoreGraphics
 
 extension CGPDFPageWrapper {
     
-    public struct Dictionary: Sequence, CustomStringConvertible, CustomDetailedStringConvertible {
+    public struct Dictionary: Sequence, CustomStringConvertible, DetailedStringConvertible {
         
         let children: Swift.Dictionary<String, CGPDFPageWrapper.Object>
         

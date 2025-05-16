@@ -163,7 +163,7 @@ public extension PDFDocument {
     /// Extract images from the given pdf.
     func extractImages() async -> some ConcurrentStream<CGImage, any Error> {
         await (0..<self.pageCount).stream.flatMap { i in
-            var queue = RingBuffer<CGPDFPageWrapper.Object>()
+            let queue = RingBuffer<CGPDFPageWrapper.Object>()
             try queue.append(.dictionary(self[i].wrapper.dictionary))
             
             var streams: [CGPDFPageWrapper.Stream] = []

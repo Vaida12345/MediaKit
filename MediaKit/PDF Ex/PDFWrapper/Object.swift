@@ -13,7 +13,7 @@ import Essentials
 
 extension CGPDFPageWrapper {
     
-    public enum Object: CustomStringConvertible, CustomDetailedStringConvertible {
+    public enum Object: CustomStringConvertible, DetailedStringConvertible {
         
         case boolean(Bool)
         case integer(Int)
