@@ -56,7 +56,7 @@ public extension PDFDocument {
     ///   - images: The images to be included.
     ///   - quality: The quality of image compression.
     @inlinable
-    convenience init<E>(from images: some ConcurrentStream<NativeImage, E>, quality: CGFloat = 1) async throws where E: Error {
+    convenience init<E>(from images: sending some ConcurrentStream<NativeImage, E>, quality: CGFloat = 1) async throws where E: Error {
         // create PDF
         self.init()
         
@@ -162,9 +162,11 @@ public extension PDFDocument {
     
     /// Extract images from the given pdf.
     func extractImages() async -> some ConcurrentStream<CGImage, any Error> {
-        await (0..<self.pageCount).stream.flatMap { i in
+        await (0..<self.pageCount)
+            .map { self[$0] }
+            .stream.flatMap { i in
             let queue = RingBuffer<CGPDFPageWrapper.Object>()
-            try queue.append(.dictionary(self[i].wrapper.dictionary))
+            try queue.append(.dictionary(i.wrapper.dictionary))
             
             var streams: [CGPDFPageWrapper.Stream] = []
             

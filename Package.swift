@@ -19,9 +19,10 @@ let package = Package (
         .package(url: "https://www.github.com/Vaida12345/DetailedDescription", from: "2.0.3"),
         .package(url: "https://www.github.com/Vaida12345/NativeImage", from: "1.0.0"),
         .package(url: "https://www.github.com/Vaida12345/Optimization", from: "1.0.0"),
+        .package(url: "https://www.github.com/Vaida12345/Swift-FLAC", from: "1.0.0"),
     ], targets: [
-        .target(name: "MediaKit", dependencies: ["FinderItem", "ConcurrentStream", "DetailedDescription", "NativeImage", "Optimization"], path: "MediaKit"),
+        .target(name: "MediaKit", dependencies: ["FinderItem", "ConcurrentStream", "DetailedDescription", "NativeImage", "Optimization", .product(name: "SwiftFLAC", package: "swift-flac")], path: "MediaKit"),
         .executableTarget(name: "Client", dependencies: ["MediaKit"], path: "Client"),
         .testTarget(name: "Tests", dependencies: ["MediaKit", "FinderItem", "ConcurrentStream", "DetailedDescription", "NativeImage"], path: "Tests")
-    ], swiftLanguageModes: [.v5]
+    ]
 )

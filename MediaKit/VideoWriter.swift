@@ -43,6 +43,7 @@ public final class VideoWriter: @unchecked Sendable {
     ///   - pixelBuffer:  The target CVPixelBuffer (already allocated).
     ///   - colorSpace:   The color space that you want in the pixel buffer.
     ///
+    nonisolated
     private static func copyOrConvertCGImage(
         _ source: CGImage,
         to pixelBuffer: CVPixelBuffer,
@@ -150,7 +151,7 @@ public final class VideoWriter: @unchecked Sendable {
     /// > with `bitsPerComponent = 8`, and `bitsPerPixel = 32`
     /// >
     /// > If the frames provided are also in this format, `VideoWriter` won't need to convert between formats and can directly use the internal storage of these frames, significantly improving rendering performance.
-    public func startWriting(yield: @escaping (_ index: Int) async throws -> CGImage?) async throws {
+    public func startWriting(yield: @escaping @Sendable (_ index: Int) async throws -> CGImage?) async throws {
         assetWriter.add(assetWriterVideoInput)
         
         // If here, AVAssetWriter exists so create AVAssetWriterInputPixelBufferAdaptor
@@ -194,7 +195,7 @@ public final class VideoWriter: @unchecked Sendable {
                     while (self?.assetWriterVideoInput.isReadyForMoreMediaData ?? false) && videoState.withLock({ $0 == .rendering }) {
                         let semaphore = DispatchSemaphore(value: 0)
                         // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
-                        Task {
+                        Task { @Sendable in
                             defer { semaphore.signal() }
                             
                             // prepare buffer
@@ -208,7 +209,6 @@ public final class VideoWriter: @unchecked Sendable {
                             
                             // Draw image into context
                             defer {
-                                pixelBufferPointer.deinitialize(count: 1)
                                 pixelBufferPointer.deallocate()
                             }
                             

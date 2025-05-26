@@ -7,14 +7,19 @@
 
 import Foundation
 import MediaKit
-import PDFKit
+@preconcurrency import PDFKit
 import DetailedDescription
 import FinderItem
 import Essentials
 import NativeImage
 
 
-let image = try FinderItem(at: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Others/Anime/Pictures/Mirai Kuriyama.heic").load(.cgImage)
+let image = try FinderItem(at: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Others/Anime/Pictures/Mirai Kuriyama.heic").load(.image)
+
+let document = try await PDFDocument(from: [image].stream, quality: 0.8)
+try document.write(to: .desktopDirectory/"doc 0.8.pdf")
+
+exit(0)
 
 #if os(macOS)
 func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.systemFont(ofSize: 24), textColor: NSColor = .black, backgroundColor: NSColor = .white) -> CGImage? {

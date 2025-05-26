@@ -36,7 +36,7 @@ extension CGPDFPageWrapper {
             self.format = format
         }
         
-        enum LoadError: GenericError {
+        enum LoadError: GenericError, @unchecked Sendable {
             
             case noAssociatedDictionary(object: CGPDFStreamRef)
             case noAssociatedData(object: CGPDFStreamRef)

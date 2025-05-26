@@ -17,7 +17,7 @@ import Synchronization
 
 
 @Suite(.serialized)
-final class VideoTests {
+final class VideoTests: @unchecked Sendable {
     
     let image: CGImage
     
@@ -26,7 +26,7 @@ final class VideoTests {
     let reference = FinderItem(at: "/Users/vaida/DataBase/Swift Package/Test Reference/MediaKit")
     
     
-    func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.systemFont(ofSize: 24), textColor: NSColor = .black, backgroundColor: NSColor = .white) -> CGImage? {
+    nonisolated func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.systemFont(ofSize: 24), textColor: NSColor = .black, backgroundColor: NSColor = .white) -> sending CGImage? {
         // 1. Create a bitmap graphics context
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let context = CGContext(data: nil,
@@ -98,7 +98,7 @@ final class VideoTests {
     func renderTest(size: CGSize) async throws {
         let dest = try await render(size: size)
         #expect(dest.exists)
-        try await #expect(dest.load(.avAsset)?.frameCount == 100)
+        try await #expect(dest.load(.avAsset).frameCount == 100)
         try dest.remove()
     }
     

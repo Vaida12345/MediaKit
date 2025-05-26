@@ -87,7 +87,7 @@ extension CGPDFPageWrapper {
         }
         
         
-        enum LoadError: GenericError {
+        enum LoadError: GenericError, @unchecked Sendable {
             
             case load(object: CGPDFObjectRef, type: CGPDFObjectType, swiftType: String)
             

@@ -1,5 +1,5 @@
 {
-  "originHash" : "38894060359ae051da6ea1339ebf6baad442e010d00b96dca195d3e22f4f6537",
+  "originHash" : "92bd42f0761bc7ec8e7e0d8438c665e3b5e7c72b2662acb09dae8cff98318f32",
   "pins" : [
     {
       "identity" : "concurrentstream",
@@ -53,6 +53,15 @@
       "state" : {
         "revision" : "d2604a0e5adcdfb718e151cd8aba9810cb6ce156",
         "version" : "1.0.8"
+      }
+    },
+    {
+      "identity" : "swift-flac",
+      "kind" : "remoteSourceControl",
+      "location" : "https://www.github.com/Vaida12345/Swift-FLAC",
+      "state" : {
+        "revision" : "11f8d08a5b0b1b521f39ea0f01661eac18bc5b78",
+        "version" : "1.0.6"
       }
     }
   ],
