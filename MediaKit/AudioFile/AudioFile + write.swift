@@ -12,7 +12,7 @@ import FinderItem
 
 extension AudioFile {
     
-    public enum Codec: String, Identifiable, CaseIterable, Sendable, Equatable, Hashable {
+    public enum Codec: String, Identifiable, CaseIterable, Sendable, Equatable, Hashable, Codable {
         case appleLossless
         case aac
         case linearPCM
