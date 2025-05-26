@@ -29,9 +29,9 @@ extension AudioFile {
         @inlinable
         public var fileTypes: [AVFileType] {
             switch self {
-            case .appleLossless: [.m4a, .caf]
-            case .aac: [.m4a, .caf, .mp4]
-            case .linearPCM: [.wav, .aiff, .aifc, .caf]
+            case .appleLossless: [.m4a]
+            case .aac: [.m4a, .mp4]
+            case .linearPCM: [.wav, .aiff]
             }
         }
     }
@@ -160,6 +160,25 @@ extension AudioFile {
 
 
 extension AVFileType {
+    
+    /// Preferred extension name for the given file type.
+    @inlinable
+    public var contentType: UTType {
+        switch self {
+        case .AHAP: .ahap
+        case .aiff: .aiff
+        case .dng: .dng
+        case .heic: .heic
+        case .heif: .heif
+        case .jpg: .jpeg
+        case .m4a: UTType("com.apple.m4a-audio")!
+        case .m4v: UTType("com.apple.m4v-video")!
+        case .mov: .quickTimeMovie
+        case .wav: .wav
+        default:
+            fatalError()
+        }
+    }
     
     /// Preferred extension name for the given file type.
     @inlinable
