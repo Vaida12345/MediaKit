@@ -84,7 +84,7 @@ extension AudioFile {
         let pcmOutputSettings: [String: Any] = [
             AVFormatIDKey:            kAudioFormatLinearPCM,
             AVSampleRateKey:          formatDescriptions.audioStreamBasicDescription!.mSampleRate,
-            AVNumberOfChannelsKey:    formatDescriptions.audioChannelLayout!.numberOfChannels,
+            AVNumberOfChannelsKey:    formatDescriptions.audioChannelLayout?.numberOfChannels ?? 2,
             AVLinearPCMBitDepthKey:   bitDepth == 0 ? 32 : bitDepth,
             AVLinearPCMIsFloatKey:    false,
             AVLinearPCMIsBigEndianKey:false,
@@ -105,7 +105,7 @@ extension AudioFile {
         var outputSettings: [String: Any] = [
             AVFormatIDKey:               codec.id,
             AVSampleRateKey:             formatDescriptions.audioStreamBasicDescription!.mSampleRate,
-            AVNumberOfChannelsKey:       formatDescriptions.audioChannelLayout!.numberOfChannels,
+            AVNumberOfChannelsKey:       formatDescriptions.audioChannelLayout?.numberOfChannels ?? 2,
         ]
         
         switch codec {
