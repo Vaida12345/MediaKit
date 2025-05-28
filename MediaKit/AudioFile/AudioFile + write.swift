@@ -13,9 +13,9 @@ import FinderItem
 extension AudioFile {
     
     public enum Codec: String, Identifiable, CaseIterable, Sendable, Equatable, Hashable, Codable {
-        case appleLossless
-        case aac
-        case linearPCM
+        case appleLossless = "Apple Lossless"
+        case aac = "AAC"
+        case linearPCM = "Linear PCM"
         
         @inlinable
         public var id: AudioFormatID {
