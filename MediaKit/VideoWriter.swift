@@ -199,18 +199,11 @@ public final class VideoWriter: @unchecked Sendable {
                             defer { semaphore.signal() }
                             
                             // prepare buffer
-                            let pixelBufferPointer = UnsafeMutablePointer<CVPixelBuffer?>.allocate(capacity: 1)
-                            
-                            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, pixelBufferPointer)
-                            let pixelBuffer = pixelBufferPointer.pointee!
+                            var pixelBuffer: CVPixelBuffer? = nil
+                            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &pixelBuffer)
                             
                             let index = counter.add(1, ordering: .sequentiallyConsistent).oldValue
                             let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(frameRate))
-                            
-                            // Draw image into context
-                            defer {
-                                pixelBufferPointer.deallocate()
-                            }
                             
                             do {
                                 guard videoState.withLock({ $0 == .rendering }) else { nextFrameTask?.cancel(); return }
@@ -227,8 +220,8 @@ public final class VideoWriter: @unchecked Sendable {
                                 guard videoState.withLock({ $0 == .rendering }) else { nextFrameTask?.cancel(); return }
                                 nextFrameTask = dispatchNextFrame(index: index + 1)
                                 
-                                try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer, colorSpace: defaultColorSpace)
-                                pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime)
+                                try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer!, colorSpace: defaultColorSpace)
+                                pixelBufferAdaptor.append(pixelBuffer!, withPresentationTime: presentationTime)
                             } catch {
                                 videoState.withLock { state in
                                     if state == .rendering {

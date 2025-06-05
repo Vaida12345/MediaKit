@@ -16,11 +16,6 @@ import NativeImage
 
 let image = try FinderItem(at: "/Users/vaida/Library/Mobile Documents/com~apple~CloudDocs/DataBase/Others/Anime/Pictures/Mirai Kuriyama.heic").load(.image)
 
-let document = try await PDFDocument(from: [image].stream, quality: 0.8)
-try document.write(to: .desktopDirectory/"doc 0.8.pdf")
-
-exit(0)
-
 #if os(macOS)
 func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.systemFont(ofSize: 24), textColor: NSColor = .black, backgroundColor: NSColor = .white) -> CGImage? {
     // 1. Create a bitmap graphics context
@@ -31,7 +26,7 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
                             bitsPerComponent: 8,
                             bytesPerRow: 0,
                             space: colorSpace,
-                            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+                            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Big.rawValue)
     
     guard let context = context else {
         print("Failed to create graphics context.")
@@ -72,7 +67,7 @@ func render(size: CGSize) async throws {
     let writer = try VideoWriter(size: size, frameRate: 25, to: destination/"\(size).mov")
     
     try await writer.startWriting { index in
-        guard index < 100 else { return nil }
+        guard index < 10000 else { return nil }
         
         return createImageWithText("\(index)", size: size)
     }
