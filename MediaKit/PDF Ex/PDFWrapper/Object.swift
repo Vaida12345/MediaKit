@@ -20,7 +20,7 @@ extension CGPDFPageWrapper {
         case real(CGFloat)
         case name(String)
         case string(String)
-        case unknownString(CGPDFStreamRef)
+        case unknownString(CGPDFStringRef)
         case date(Date)
         case array(CGPDFPageWrapper.Array)
         case stream(CGPDFPageWrapper.Stream)
