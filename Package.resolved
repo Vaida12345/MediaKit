@@ -1,22 +1,22 @@
 {
-  "originHash" : "92bd42f0761bc7ec8e7e0d8438c665e3b5e7c72b2662acb09dae8cff98318f32",
+  "originHash" : "78ee7f68d815143255ef3700bf8637869c7f5b0fae56214da2434eaa7393a85f",
   "pins" : [
     {
       "identity" : "concurrentstream",
       "kind" : "remoteSourceControl",
       "location" : "https://www.github.com/Vaida12345/ConcurrentStream.git",
       "state" : {
-        "revision" : "1b00d06264105dfa9787a1b0fbe6cfd29e4cef80",
-        "version" : "0.1.1"
+        "revision" : "f7f52360f322efc754c911b9c83df423055a694e",
+        "version" : "1.0.1"
       }
     },
     {
       "identity" : "detaileddescription",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/DetailedDescription.git",
+      "location" : "https://www.github.com/Vaida12345/DetailedDescription",
       "state" : {
-        "revision" : "30d0c3d0fd0c21f42db6d91d44263b1f0dc3bfd0",
-        "version" : "2.0.4"
+        "revision" : "d9726110ad54474071bf7fac6c2d256d44b1fa63",
+        "version" : "2.0.7"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://www.github.com/Vaida12345/Essentials",
       "state" : {
-        "revision" : "a24b48575e20f520b9af5b62867cb5621987c54c",
-        "version" : "1.0.37"
+        "revision" : "f177c1101c3cda5caf1c581cac3d1868dfcbcc49",
+        "version" : "1.1.1"
       }
     },
     {
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://www.github.com/Vaida12345/FinderItem",
       "state" : {
-        "revision" : "6c31b88e3fa2539f35289cb8ef705fc45adc7ed9",
-        "version" : "1.0.14"
+        "revision" : "b4b6bda1c7f1b0ead3286269ab941acfae7cc838",
+        "version" : "1.0.16"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://www.github.com/Vaida12345/Optimization",
       "state" : {
-        "revision" : "d2604a0e5adcdfb718e151cd8aba9810cb6ce156",
-        "version" : "1.0.8"
+        "revision" : "106a073168e768c20f00fb1ef354cbceb89ec1dd",
+        "version" : "1.0.10"
       }
     },
     {

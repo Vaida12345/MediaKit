@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -15,7 +15,7 @@ let package = Package (
         .library(name: "MediaKit", targets: ["MediaKit"]),
     ], dependencies: [
         .package(url: "https://www.github.com/Vaida12345/FinderItem", from: "1.0.0"),
-        .package(url: "https://www.github.com/Vaida12345/ConcurrentStream", from: "0.1.0"),
+        .package(url: "https://www.github.com/Vaida12345/ConcurrentStream", from: "1.0.0"),
         .package(url: "https://www.github.com/Vaida12345/DetailedDescription", from: "2.0.3"),
         .package(url: "https://www.github.com/Vaida12345/NativeImage", from: "1.0.0"),
         .package(url: "https://www.github.com/Vaida12345/Optimization", from: "1.0.0"),
@@ -24,5 +24,5 @@ let package = Package (
         .target(name: "MediaKit", dependencies: ["FinderItem", "ConcurrentStream", "DetailedDescription", "NativeImage", "Optimization", .product(name: "SwiftFLAC", package: "swift-flac")], path: "MediaKit"),
         .executableTarget(name: "Client", dependencies: ["MediaKit"], path: "Client"),
         .testTarget(name: "Tests", dependencies: ["MediaKit", "FinderItem", "ConcurrentStream", "DetailedDescription", "NativeImage"], path: "Tests")
-    ]
+    ], swiftLanguageModes: [.v5]
 )

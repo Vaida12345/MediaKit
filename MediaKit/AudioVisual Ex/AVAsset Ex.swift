@@ -221,8 +221,7 @@ public extension AVAsset {
     ///   - getTime: The function to extract time from an element of `image`. Note that when this is not `nil`, the `videoFPS` parameter will not be used.
     ///
     /// Source: [stack overflow](https://stackOverflow.com/questions/3741323/how-do-i-export-UIImage-array-as-a-movie/3742212#36297656)
-    @available(macOS 15, iOS 18, *)
-    static func convert<Element, E>(images: some ConcurrentStream<Element, E>, toVideo video: FinderItem, videoFPS: Float, colorSpace: CGColorSpace? = nil, container: AVFileType = .mov, codec: AVVideoCodecType = .hevc, getImage: @escaping @Sendable (_ item: Element) -> CGImage, getTime: (@Sendable (_ item: Element) -> CMTime)? = nil) async throws where E: Error {
+    static func convert<Element: Sendable, E>(images: some ConcurrentStream<Element, E>, toVideo video: FinderItem, videoFPS: Float, colorSpace: CGColorSpace? = nil, container: AVFileType = .mov, codec: AVVideoCodecType = .hevc, getImage: @escaping @Sendable (_ item: Element) -> CGImage, getTime: (@Sendable (_ item: Element) -> CMTime)? = nil) async throws where E: Error {
         
         let video = video.generateUniquePath()
         
@@ -230,7 +229,6 @@ public extension AVAsset {
         
         guard let first = try await images.next() else { throw ConvertImagesToVideoError.imagesEmpty }
         
-        nonisolated(unsafe)
         let iterator = [first].stream + images
         
         let _frame: CGImage? = getImage(first)

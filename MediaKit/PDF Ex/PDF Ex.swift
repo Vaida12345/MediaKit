@@ -7,7 +7,7 @@
 //
 
 #if canImport(PDFKit)
-import PDFKit
+@preconcurrency import PDFKit
 import UniformTypeIdentifiers
 import FinderItem
 import ConcurrentStream
@@ -163,8 +163,7 @@ public extension PDFDocument {
     /// Extract images from the given pdf.
     func extractImages() async -> some ConcurrentStream<CGImage, any Error> {
         await (0..<self.pageCount)
-            .map { self[$0] }
-            .stream.flatMap { i in
+            .stream.map { self[$0] }.flatMap { i in
             let queue = RingBuffer<CGPDFPageWrapper.Object>()
             try queue.append(.dictionary(i.wrapper.dictionary))
             
