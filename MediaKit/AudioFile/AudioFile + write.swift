@@ -185,11 +185,15 @@ extension AVFileType: Codable {
     public var `extension`: String {
         switch self {
         case .AHAP: "ahap"
+#if !os(visionOS)
         case .SCC: "scc"
+#endif
         case .ac3: "ac3"
         case .aifc: "aifc"
         case .aiff: "aiff"
+#if !os(visionOS)
         case .appleiTT: "itt"
+#endif
         case .au: "au"
         case .avci: "avci"
         case .caf: "caf"
