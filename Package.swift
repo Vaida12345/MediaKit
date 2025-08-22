@@ -14,12 +14,12 @@ let package = Package (
     ], products: [
         .library(name: "MediaKit", targets: ["MediaKit"]),
     ], dependencies: [
-        .package(url: "https://www.github.com/Vaida12345/FinderItem", from: "1.0.0"),
-        .package(url: "https://www.github.com/Vaida12345/ConcurrentStream", from: "1.0.0"),
-        .package(url: "https://www.github.com/Vaida12345/DetailedDescription", from: "2.0.3"),
-        .package(url: "https://www.github.com/Vaida12345/NativeImage", from: "1.0.0"),
-        .package(url: "https://www.github.com/Vaida12345/Optimization", from: "1.0.0"),
-        .package(url: "https://www.github.com/Vaida12345/Swift-FLAC", from: "1.0.0"),
+        .package(url: "https://github.com/Vaida12345/FinderItem.git", from: "1.0.0"),
+        .package(url: "https://github.com/Vaida12345/ConcurrentStream.git", from: "1.0.0"),
+        .package(url: "https://github.com/Vaida12345/DetailedDescription.git", from: "2.0.3"),
+        .package(url: "https://github.com/Vaida12345/NativeImage.git", from: "1.0.0"),
+        .package(url: "https://github.com/Vaida12345/Optimization.git", from: "1.0.0"),
+        .package(url: "https://github.com/Vaida12345/Swift-FLAC.git", from: "1.0.0"),
     ], targets: [
         .target(name: "MediaKit", dependencies: ["FinderItem", "ConcurrentStream", "DetailedDescription", "NativeImage", "Optimization", .product(name: "SwiftFLAC", package: "swift-flac")], path: "MediaKit"),
         .executableTarget(name: "Client", dependencies: ["MediaKit"], path: "Client"),

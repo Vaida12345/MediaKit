@@ -159,7 +159,7 @@ extension AudioFile {
 }
 
 
-extension AVFileType: Codable {
+extension AVFileType: @retroactive Codable {
     
     /// Preferred extension name for the given file type.
     @inlinable

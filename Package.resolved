@@ -1,55 +1,55 @@
 {
-  "originHash" : "78ee7f68d815143255ef3700bf8637869c7f5b0fae56214da2434eaa7393a85f",
+  "originHash" : "cd1cf41b0c21e1dd251a97e39f49dc6a9abd3e374ed4ffae25f36dd41e712e35",
   "pins" : [
     {
       "identity" : "concurrentstream",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/ConcurrentStream.git",
+      "location" : "https://github.com/Vaida12345/ConcurrentStream",
       "state" : {
-        "revision" : "f7f52360f322efc754c911b9c83df423055a694e",
-        "version" : "1.0.1"
+        "revision" : "6c3bd4c763dd8f18437c3e857dd6a1f977c93124",
+        "version" : "1.0.2"
       }
     },
     {
       "identity" : "detaileddescription",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/DetailedDescription",
+      "location" : "https://github.com/Vaida12345/DetailedDescription",
       "state" : {
-        "revision" : "d9726110ad54474071bf7fac6c2d256d44b1fa63",
-        "version" : "2.0.7"
+        "revision" : "d4ae923e6cc5dadc7219d54cbf31912889f7bf33",
+        "version" : "2.1.1"
       }
     },
     {
       "identity" : "essentials",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/Essentials",
+      "location" : "https://github.com/Vaida12345/Essentials.git",
       "state" : {
-        "revision" : "f177c1101c3cda5caf1c581cac3d1868dfcbcc49",
-        "version" : "1.1.1"
+        "revision" : "29bb0ec3a79784a1dac861f5d48eac03e6c770b9",
+        "version" : "1.1.4"
       }
     },
     {
       "identity" : "finderitem",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/FinderItem",
+      "location" : "https://github.com/Vaida12345/FinderItem",
       "state" : {
-        "revision" : "b4b6bda1c7f1b0ead3286269ab941acfae7cc838",
-        "version" : "1.0.16"
+        "revision" : "cbbe70e8a975291797a7b38db3a083a146eba0c3",
+        "version" : "1.2.1"
       }
     },
     {
       "identity" : "nativeimage",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/NativeImage",
+      "location" : "https://github.com/Vaida12345/NativeImage",
       "state" : {
-        "revision" : "c3c562710f058caa9fcbaba2c20ba3e3f404d7ec",
-        "version" : "1.0.2"
+        "revision" : "85534ff1cf306ed9e674c5dc782dd0ca8bda423d",
+        "version" : "1.0.3"
       }
     },
     {
       "identity" : "optimization",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/Optimization",
+      "location" : "https://github.com/Vaida12345/Optimization",
       "state" : {
         "revision" : "106a073168e768c20f00fb1ef354cbceb89ec1dd",
         "version" : "1.0.10"
@@ -58,10 +58,10 @@
     {
       "identity" : "swift-flac",
       "kind" : "remoteSourceControl",
-      "location" : "https://www.github.com/Vaida12345/Swift-FLAC",
+      "location" : "https://github.com/Vaida12345/Swift-FLAC.git",
       "state" : {
-        "revision" : "11f8d08a5b0b1b521f39ea0f01661eac18bc5b78",
-        "version" : "1.0.6"
+        "revision" : "80b027ea9d209bae06af42a088780f1b4d2071bd",
+        "version" : "1.0.7"
       }
     }
   ],
