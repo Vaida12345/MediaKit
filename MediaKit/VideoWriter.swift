@@ -413,7 +413,7 @@ public final class VideoWriter: @unchecked Sendable {
         public var message: String {
             switch self {
             case .pixelBufferPoolNil:
-                "Pixel buffer pool is nil after starting writing session, this typically means you do not have permission to write to the given file"
+                "Pixel buffer pool is nil after starting writing session, this typically means you do not have permission to write to the given file, or a file with the same name already exists."
             case .videoSizeTooLarge(let size):
                 "HEVC codec supports the resolutions up to 8192×4320, the given size, \(Int(size.width))×\(Int(size.height)), is too large"
             }
