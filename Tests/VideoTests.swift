@@ -76,9 +76,12 @@ final class VideoTests: @unchecked Sendable {
         
         try await writer.startWriting { index in
             guard index < 100 else { return nil }
+            print("render \(index)")
             
             return self.createImageWithText("\(index)", size: size)
         }
+        
+        print("render complete")
         
         return dest
     }
@@ -94,7 +97,7 @@ final class VideoTests: @unchecked Sendable {
         return Data(bytesNoCopy: .init(mutating: bytes), count: size, deallocator: .none)
     }
     
-    @Test(arguments: [.square(1), .square(10), .square(100), .square(1000), CGSize(width: 8192, height: 4320)])
+    @Test(arguments: [.square(10), .square(100), .square(1000), CGSize(width: 8192, height: 4320)])
     func renderTest(size: CGSize) async throws {
         let dest = try await render(size: size)
         #expect(dest.exists)

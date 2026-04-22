@@ -7,8 +7,6 @@
 
 import AVFoundation
 import Foundation
-import Metal
-import MetalKit
 import Synchronization
 import FinderItem
 import Essentials
@@ -20,20 +18,22 @@ import Accelerate
 /// - Experiment: It is best not to have writers run in parallel.
 @available(macOS 15.0, iOS 18.0, tvOS 18.0, *)
 public final class VideoWriter: @unchecked Sendable {
-    
+
     private let assetWriter: AVAssetWriter
-    
+
     private let assetWriterVideoInput: AVAssetWriterInput
-    
+
     private let size: CGSize
-    
+
     private let destination: FinderItem
-    
+
     private let frameRate: Int
-    
+
     private let queue = DispatchQueue(label: "package.MediaKit.VideoWriter.mediaQueue")
     
-    
+    private static var hasShownConvertWarning: Bool = false
+
+
     /// Copies or converts a CGImage into a CVPixelBuffer in BGRA8, premultiplied-alpha.
     /// Checks if the CGImage matches the desired format; if so, uses memcpy.
     /// Otherwise, uses vImage for color/format conversion.
@@ -49,45 +49,51 @@ public final class VideoWriter: @unchecked Sendable {
         to pixelBuffer: CVPixelBuffer,
         colorSpace: CGColorSpace
     ) throws {
-        // 2. Lock the base address before modifying.
         CVPixelBufferLockBaseAddress(pixelBuffer, [])
-        
+
         defer {
             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
         }
-        
-        let destBaseAddress = CVPixelBufferGetBaseAddress(pixelBuffer)!
-        
+
+        guard let destBaseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+            throw WriteError.pixelBufferBaseAddressNil
+        }
+
         let destBytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-        let width  = CVPixelBufferGetWidth(pixelBuffer)
+        let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
-        
-        // 3. If the CGImage is already in 8-bit BGRA premultiplied-first, little-endian,
-        //    and matches the row bytes, we can just do a raw copy.
-        if  source.bitsPerComponent == 8,
-            source.bitsPerPixel == 32,
-            source.bitmapInfo.rawValue == CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
-            source.bytesPerRow == destBytesPerRow,
+
+        // Fast path when source pixels already match destination layout.
+        if source.bitsPerComponent == 8,
+           source.bitsPerPixel == 32,
+           source.bitmapInfo.alpha == .premultipliedFirst,
+           source.bitmapInfo.byteOrder == .order32Little,
+           source.bytesPerRow == destBytesPerRow,
             let data = source.dataProvider?.data {
-            
-            let length = CFDataGetLength(data)
-            memcpy(destBaseAddress, CFDataGetBytePtr(data), length)
-            return
+
+            let srcLength = CFDataGetLength(data)
+            let expectedLength = destBytesPerRow * height
+            if srcLength >= expectedLength {
+                memcpy(destBaseAddress, CFDataGetBytePtr(data), expectedLength)
+                return
+            }
+        }
+
+        // convert image
+        if !VideoWriter.hasShownConvertWarning {
+            let logger = Logger(subsystem: "MediaKit", category: "VideoWriter")
+            logger.warning("VideoWriter is converting input CGImage to BGRA8, premultiplied-alpha. This is extra work, you can avoid this by setting input to correct format.")
+            VideoWriter.hasShownConvertWarning = true
         }
         
-        // 4. Otherwise, use Accelerate/vImage to convert from the CGImage format
-        //    into the pixel buffer’s format.
-        // Create vImage format descriptors for source and destination.
         var srcFormat = vImage_CGImageFormat(cgImage: source)!
         let dstFormat = vImageCVImageFormat.make(format: .format32BGRA, colorSpace: colorSpace, alphaIsOpaqueHint: false)!
-        
-        // Prepare a vImage buffer for the source image.
+
         var srcBuffer = vImage_Buffer()
         defer {
             free(srcBuffer.data)
         }
-        
-        // Initialize that buffer with the CGImage’s pixels.
+
         let initError = vImageBuffer_InitWithCGImage(
             &srcBuffer,
             &srcFormat,
@@ -96,16 +102,14 @@ public final class VideoWriter: @unchecked Sendable {
             vImage_Flags(kvImageNoFlags)
         )
         guard initError == kvImageNoError else { throw vImage.Error(vImageError: initError) }
-        
-        // Prepare a vImage buffer pointing directly at the CVPixelBuffer’s memory.
+
         var dstBuffer = vImage_Buffer(
             data: destBaseAddress,
             height: vImagePixelCount(height),
             width: vImagePixelCount(width),
             rowBytes: destBytesPerRow
         )
-        
-        // Create a converter that handles any needed color or alpha transformations.
+
         var converterError: Int = 0
         guard let converter = vImageConverter_CreateForCGToCVImageFormat(
             &srcFormat,
@@ -116,8 +120,7 @@ public final class VideoWriter: @unchecked Sendable {
         ) else {
             throw vImage.Error(vImageError: converterError)
         }
-        
-        // Run the conversion.
+
         let convertError = vImageConvert_AnyToAny(
             converter.takeRetainedValue(),
             &srcBuffer,
@@ -127,7 +130,7 @@ public final class VideoWriter: @unchecked Sendable {
         )
         guard convertError == kvImageNoError else { throw vImage.Error(vImageError: convertError) }
     }
-    
+
     /// Starts writing to destination.
     ///
     /// - Parameters:
@@ -152,21 +155,92 @@ public final class VideoWriter: @unchecked Sendable {
     /// >
     /// > If the frames provided are also in this format, `VideoWriter` won't need to convert between formats and can directly use the internal storage of these frames, significantly improving rendering performance.
     public func startWriting(yield: @escaping @Sendable (_ index: Int) async throws -> CGImage?) async throws {
-        assetWriter.add(assetWriterVideoInput)
+        if #available(iOS 26.0, macOS 26.0, visionOS 26, *) {
+            try await self.startWriting_post26(yield: yield)
+        } else {
+            try await self.startWriting_pre26(yield: yield)
+        }
+    }
+    
+    
+    @available(iOS 26.0, macOS 26.0, visionOS 26, *)
+    private func startWriting_post26(yield: @escaping @Sendable (_ index: Int) async throws -> CGImage?) async throws {
+        nonisolated(unsafe) let writer = assetWriter
+        guard writer.status == .unknown else { throw WriteError.invalidAssetWriterState(writer.status.rawValue) }
         
-        // If here, AVAssetWriter exists so create AVAssetWriterInputPixelBufferAdaptor
-        let sourceBufferAttributes : [String : AnyObject] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA as AnyObject,
-            kCVPixelBufferWidthKey           as String: size.width                as AnyObject,
-            kCVPixelBufferHeightKey          as String: size.height               as AnyObject
+        let attributes = CVPixelBufferCreationAttributes(pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA), size: CVImageSize(size))
+        let inputReceiver = writer.inputPixelBufferReceiver(for: assetWriterVideoInput, pixelBufferAttributes: attributes)
+        
+        try writer.start()
+        writer.startSession(atSourceTime: .zero)
+        
+        guard let pixelBufferPool = inputReceiver.pixelBufferPool else { throw WriteError.pixelBufferPoolNil }
+        
+        let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
+        
+        let frameTaskBox = Mutex<Task<CGImage?, any Error>>(dispatchNextFrame(index: 0))
+        let counter = Atomic<Int>(0)
+        let frameRate = frameRate
+        
+        @Sendable func dispatchNextFrame(index: Int) -> Task<CGImage?, any Error> {
+            Task.detached {
+                try await yield(index)
+            }
+        }
+        
+        try await withTaskCancellationHandler {
+            while true {
+                let currentTask = frameTaskBox.withLock { $0 }   // snapshot under lock
+                guard let frame = try await currentTask.value else { break }
+                let index = counter.add(1, ordering: .sequentiallyConsistent).oldValue
+                let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(frameRate))
+                
+                // dispatch next frame
+                let next = dispatchNextFrame(index: index + 1)
+                frameTaskBox.withLock { $0 = next }              // mutation under lock
+                
+                // prepare buffer
+                let pixelBuffer = try pixelBufferPool.makeMutablePixelBuffer()
+                try pixelBuffer.withUnsafeBuffer { pixelBuffer in
+                    try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer, colorSpace: defaultColorSpace)
+                }
+                
+                try await inputReceiver.append(.init(pixelBuffer), with: presentationTime)
+            }
+            
+            inputReceiver.finish()
+            await writer.finishWriting()
+            
+            if let error = writer.error {
+                throw error
+            }
+        } onCancel: {
+            writer.cancelWriting()
+            frameTaskBox.withLock {
+                $0.cancel()
+            }
+        }
+    }
+    
+    private func startWriting_pre26(yield: @escaping @Sendable (_ index: Int) async throws -> CGImage?) async throws {
+        nonisolated(unsafe) let writer = assetWriter
+        guard writer.status == .unknown else { throw WriteError.invalidAssetWriterState(writer.status.rawValue) }
+        
+        writer.add(assetWriterVideoInput)
+        
+        let sourceBufferAttributes: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: size.width,
+            kCVPixelBufferHeightKey as String: size.height
         ]
         
         nonisolated(unsafe)
         let pixelBufferAdaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: assetWriterVideoInput, sourcePixelBufferAttributes: sourceBufferAttributes)
         
-        // Start writing session
-        assetWriter.startWriting()
-        assetWriter.startSession(atSourceTime: CMTime.zero)
+        guard writer.startWriting() else {
+            throw writer.error ?? WriteError.failedToStartWriting(writer.status.rawValue)
+        }
+        writer.startSession(atSourceTime: .zero)
         
         guard let _pixelBufferPool = pixelBufferAdaptor.pixelBufferPool else { throw WriteError.pixelBufferPoolNil }
         nonisolated(unsafe) let pixelBufferPool = _pixelBufferPool
@@ -193,20 +267,21 @@ public final class VideoWriter: @unchecked Sendable {
                     guard videoState.withLock({ $0 == .rendering }) else { return }
                     
                     while (self?.assetWriterVideoInput.isReadyForMoreMediaData ?? false) && videoState.withLock({ $0 == .rendering }) {
+                        print("request next")
+                        
                         let semaphore = DispatchSemaphore(value: 0)
                         // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
                         Task { @Sendable in
                             defer { semaphore.signal() }
                             
-                            // prepare buffer
-                            var pixelBuffer: CVPixelBuffer? = nil
-                            CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &pixelBuffer)
-                            
                             let index = counter.add(1, ordering: .sequentiallyConsistent).oldValue
                             let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(frameRate))
                             
                             do {
-                                guard videoState.withLock({ $0 == .rendering }) else { nextFrameTask?.cancel(); return }
+                                guard videoState.withLock({ $0 == .rendering }) else {
+                                    nextFrameTask?.cancel()
+                                    return
+                                }
                                 
                                 guard let frame = try await nextFrameTask?.value else {
                                     videoState.withLock { state in
@@ -217,11 +292,23 @@ public final class VideoWriter: @unchecked Sendable {
                                     return
                                 }
                                 
-                                guard videoState.withLock({ $0 == .rendering }) else { nextFrameTask?.cancel(); return }
+                                guard videoState.withLock({ $0 == .rendering }) else {
+                                    nextFrameTask?.cancel()
+                                    return
+                                }
                                 nextFrameTask = dispatchNextFrame(index: index + 1)
                                 
-                                try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer!, colorSpace: defaultColorSpace)
-                                pixelBufferAdaptor.append(pixelBuffer!, withPresentationTime: presentationTime)
+                                // prepare buffer
+                                var pixelBuffer: CVPixelBuffer? = nil
+                                let pixelBufferCreationStatus = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &pixelBuffer)
+                                guard pixelBufferCreationStatus == kCVReturnSuccess, let pixelBuffer else {
+                                    throw WriteError.failedToCreatePixelBuffer(pixelBufferCreationStatus)
+                                }
+                                
+                                try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer, colorSpace: defaultColorSpace)
+                                guard pixelBufferAdaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
+                                    throw writer.error ?? WriteError.failedToAppendFrame(index)
+                                }
                             } catch {
                                 videoState.withLock { state in
                                     if state == .rendering {
@@ -231,9 +318,15 @@ public final class VideoWriter: @unchecked Sendable {
                             }
                         }
                         semaphore.wait()
-                    } // end while loop
+                        
+                        print("render complete")
+                    }
+                    
+                    print("no longer rendering")
                     
                     videoState.withLock { state in
+                        print("video state is \(state)")
+                        
                         switch state {
                         case .rendering:
                             break
@@ -258,8 +351,10 @@ public final class VideoWriter: @unchecked Sendable {
                 }
             } // end withCheckedThrowingContinuation
             
+            print("end video")
+            
             guard videoState.withLock({ $0.isFinished }) else {
-                assetWriter.cancelWriting()
+                writer.cancelWriting()
                 
                 return try videoState.withLock { state in
                     switch state {
@@ -274,9 +369,9 @@ public final class VideoWriter: @unchecked Sendable {
             }
             
             self.queue.sync { }
-            await assetWriter.finishWriting()
+            await writer.finishWriting()
             
-            if let error = assetWriter.error {
+            if let error = writer.error {
                 throw error
             }
         } onCancel: {
@@ -285,8 +380,8 @@ public final class VideoWriter: @unchecked Sendable {
             nextFrameTask = nil
         }
     }
-    
-    
+
+
     private enum VideoState: Equatable {
         case rendering
         case willCancel
@@ -294,7 +389,7 @@ public final class VideoWriter: @unchecked Sendable {
         case didCancel(NSError?)
         case willFinish
         case didFinish
-        
+
         var isFinished: Bool {
             switch self {
             case .willFinish, .didFinish: true
@@ -302,8 +397,8 @@ public final class VideoWriter: @unchecked Sendable {
             }
         }
     }
-    
-    
+
+
     /// Creates a video writer.
     ///
     /// Transparency is only recorded when codec is `ProRess4444`.
@@ -315,110 +410,64 @@ public final class VideoWriter: @unchecked Sendable {
     ///   - container: The file format.
     ///   - codec: The codec used.
     public init(size: CGSize, frameRate: Int, to destination: FinderItem, container: AVFileType = .mov, codec: AVVideoCodecType = .hevc) throws {
-        guard size.width <= 8192 && size.height <= 4320 else { throw WriteError.videoSizeTooLarge(size) }
-        
+        guard frameRate > 0 else { throw WriteError.invalidFrameRate(frameRate) }
+        if codec == .hevc {
+            guard size.width <= 8192 && size.height <= 4320 else { throw WriteError.videoSizeTooLarge(size) }
+        }
+
         self.size = size
         self.frameRate = frameRate
         self.destination = destination
-        
-        let videoWidth  = size.width
+
+        let videoWidth = size.width
         let videoHeight = size.height
-        
+
         try destination.removeIfExists()
-        
+
         self.assetWriter = try AVAssetWriter(outputURL: destination.url, fileType: container)
-        
-        // Define settings for video input
-        let videoSettings: [String : AnyObject] = [
-            AVVideoCodecKey : codec       as AnyObject,
-            AVVideoWidthKey : videoWidth  as AnyObject,
-            AVVideoHeightKey: videoHeight as AnyObject
+
+        let videoSettings: [String: Any] = [
+            AVVideoCodecKey: codec,
+            AVVideoWidthKey: videoWidth,
+            AVVideoHeightKey: videoHeight
         ]
-        
-        // Add video input to writer
-        self.assetWriterVideoInput = AVAssetWriterInput(mediaType: AVMediaType.video, outputSettings: videoSettings)
+
+        self.assetWriterVideoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
     }
-    
-    
-    private class MetalImageConverter {
-        private let device: MTLDevice
-        private let commandQueue: MTLCommandQueue
-        private let textureLoader: MTKTextureLoader
-        
-        init() {
-            self.device = MTLCreateSystemDefaultDevice()!
-            self.commandQueue = self.device.makeCommandQueue()!
-            self.textureLoader = MTKTextureLoader(device: self.device)
-        }
-        
-        func convertImageToPixelBuffer(_ image: CGImage, pixelBuffer: CVPixelBuffer?, size: CGSize)  {
-            let texture = try! textureLoader.newTexture(cgImage: image, options: nil)
-            
-            let buffer = pixelBuffer!
-            
-            CVPixelBufferLockBaseAddress(buffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
-            defer {
-                CVPixelBufferUnlockBaseAddress(buffer, CVPixelBufferLockFlags(rawValue: CVOptionFlags(0)))
-            }
-            
-            let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
-                pixelFormat: .bgra8Unorm,
-                width: Int(size.width),
-                height: Int(size.height),
-                mipmapped: false
-            )
-            
-            textureDescriptor.usage = [.shaderWrite, .shaderRead]
-            
-            let textureFromBuffer = device.makeTexture(
-                descriptor: textureDescriptor,
-                iosurface: CVPixelBufferGetIOSurface(buffer)!.takeUnretainedValue(),
-                plane: 0)!
-            
-            let commandBuffer = commandQueue.makeCommandBuffer()!
-            let blitEncoder = commandBuffer.makeBlitCommandEncoder()!
-            
-            var drawCGRect = CGRect(center: CGPoint(x: image.size.width / 2, y: image.size.height / 2), size: size)
-            
-            if drawCGRect.origin == CGPoint(x: 44, y: 44) {
-                // caused by focus, use auto correct
-                drawCGRect.origin.y -= 20
-            }
-            
-            blitEncoder.copy(
-                from: texture,
-                sourceSlice: 0,
-                sourceLevel: 0,
-                sourceOrigin: MTLOrigin(x: max(0, Int(drawCGRect.origin.x)), y: max(0, Int(drawCGRect.origin.y)), z: 0),
-                sourceSize: MTLSize(width: Int(drawCGRect.width), height: Int(drawCGRect.height), depth: 1),
-                to: textureFromBuffer,
-                destinationSlice: 0,
-                destinationLevel: 0,
-                destinationOrigin: MTLOriginMake(0, 0, 0)
-            )
-            blitEncoder.endEncoding()
-            
-            commandBuffer.commit()
-            commandBuffer.waitUntilCompleted()
-            
-            assert(commandBuffer.status.rawValue == 4)
-        }
-    }
-    
+
+
     public enum WriteError: GenericError, Equatable {
-        
+
         case pixelBufferPoolNil
+        case pixelBufferBaseAddressNil
+        case failedToCreatePixelBuffer(CVReturn)
+        case failedToAppendFrame(Int)
+        case failedToStartWriting(Int)
+        case invalidAssetWriterState(Int)
+        case invalidFrameRate(Int)
         case videoSizeTooLarge(CGSize)
-        
+
         public var message: String {
             switch self {
             case .pixelBufferPoolNil:
                 "Pixel buffer pool is nil after starting writing session, this typically means you do not have permission to write to the given file, or a file with the same name already exists."
+            case .pixelBufferBaseAddressNil:
+                "Failed to access the pixel buffer base address."
+            case .failedToCreatePixelBuffer(let status):
+                "Failed to create a pixel buffer from the pool. Status: \(status)."
+            case .failedToAppendFrame(let index):
+                "Failed to append frame at index \(index) to the asset writer input."
+            case .failedToStartWriting(let status):
+                "AVAssetWriter failed to start writing. Status: \(status)."
+            case .invalidAssetWriterState(let state):
+                "VideoWriter is in an invalid state for startWriting. AVAssetWriter status: \(state)."
+            case .invalidFrameRate(let frameRate):
+                "Frame rate must be greater than zero. Received \(frameRate)."
             case .videoSizeTooLarge(let size):
                 "HEVC codec supports the resolutions up to 8192×4320, the given size, \(Int(size.width))×\(Int(size.height)), is too large"
             }
         }
-        
+
     }
-    
+
 }
