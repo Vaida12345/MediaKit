@@ -135,9 +135,8 @@ final class VideoTests: @unchecked Sendable {
         let isTaskCanceled = Atomic<Bool>(false)
         let task = Task.detached {
             try await writer.startWriting { index in
-                if isTaskCanceled.load(ordering: .sequentiallyConsistent) {
-                    #expect(Bool(false), "Writing handler called after cancellation!")
-                }
+                #expect(Bool(!isTaskCanceled.load(ordering: .sequentiallyConsistent)), "Writing handler called after cancellation!")
+                
                 return self.createImageWithText("\(index)", size: CGSize(width: 1920, height: 1080))
             }
         }

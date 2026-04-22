@@ -156,9 +156,9 @@ public final class VideoWriter: @unchecked Sendable {
     /// > If the frames provided are also in this format, `VideoWriter` won't need to convert between formats and can directly use the internal storage of these frames, significantly improving rendering performance.
     public func startWriting(yield: @escaping @Sendable (_ index: Int) async throws -> CGImage?) async throws {
         if #available(iOS 26.0, macOS 26.0, visionOS 26, *) {
-            try await self.startWriting_post26(yield: yield)
+            return try await self.startWriting_post26(yield: yield)
         } else {
-            try await self.startWriting_pre26(yield: yield)
+            return try await self.startWriting_pre26(yield: yield)
         }
     }
     
@@ -178,8 +178,8 @@ public final class VideoWriter: @unchecked Sendable {
         
         let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
         
-        let frameTaskBox = Mutex<Task<CGImage?, any Error>>(dispatchNextFrame(index: 0))
-        let counter = Atomic<Int>(0)
+        let frameTaskBox = Mutex<Task<CGImage?, any Error>?>(dispatchNextFrame(index: 0))
+        var frameIndex = 0
         let frameRate = frameRate
         
         @Sendable func dispatchNextFrame(index: Int) -> Task<CGImage?, any Error> {
@@ -188,14 +188,17 @@ public final class VideoWriter: @unchecked Sendable {
             }
         }
         
-        try await withTaskCancellationHandler {
+        do {
             while true {
                 let currentTask = frameTaskBox.withLock { $0 }   // snapshot under lock
-                guard let frame = try await currentTask.value else { break }
-                let index = counter.add(1, ordering: .sequentiallyConsistent).oldValue
+                guard let frame = try await currentTask?.value else { break }
+                
+                let index = frameIndex
+                frameIndex += 1
                 let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(frameRate))
                 
                 // dispatch next frame
+                try Task.checkCancellation() // we put check cancellation here based on the assumption that generating frame is the heaviest stack.
                 let next = dispatchNextFrame(index: index + 1)
                 frameTaskBox.withLock { $0 = next }              // mutation under lock
                 
@@ -214,11 +217,13 @@ public final class VideoWriter: @unchecked Sendable {
             if let error = writer.error {
                 throw error
             }
-        } onCancel: {
+        } catch {
             writer.cancelWriting()
             frameTaskBox.withLock {
-                $0.cancel()
+                $0?.cancel()
+                $0 = nil
             }
+            throw error
         }
     }
     
