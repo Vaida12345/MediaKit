@@ -160,6 +160,80 @@ final class VideoTests: @unchecked Sendable {
         }
         #expect(!dest.exists)
     }
+
+    /// Verifies frame indexes are requested in order and stop exactly when `yield` returns `nil`.
+    @Test
+    func renderStopsAtNilAndRequestsExpectedIndexes() async throws {
+        let frameCount = 12
+        let size = CGSize(width: 320, height: 180)
+        let dest = destination/"renderStopsAtNilAndRequestsExpectedIndexes.mov"
+        let writer = try VideoWriter(size: size, frameRate: 30, to: dest)
+        let requestedIndexes = Mutex<[Int]>([])
+
+        try await writer.startWriting { index in
+            requestedIndexes.withLock { $0.append(index) }
+            guard index < frameCount else { return nil }
+            return self.createImageWithText("\(index)", size: size)
+        }
+
+        let expectedIndexes = Array(0...frameCount)
+        #expect(requestedIndexes.withLock { $0 == expectedIndexes })
+        try await #expect(dest.load(.avAsset).frameCount == frameCount)
+        try dest.remove()
+    }
+
+    /// Verifies the writer keeps at most one frame-generation task in flight at a time.
+    @Test
+    func renderKeepsAtMostOneYieldTaskInFlight() async throws {
+        let size = CGSize(width: 320, height: 180)
+        let dest = destination/"renderKeepsAtMostOneYieldTaskInFlight.mov"
+        let writer = try VideoWriter(size: size, frameRate: 30, to: dest)
+        let state = Mutex<(inFlight: Int, maxInFlight: Int)>((0, 0))
+
+        try await writer.startWriting { index in
+            state.withLock {
+                $0.inFlight += 1
+                $0.maxInFlight = max($0.maxInFlight, $0.inFlight)
+            }
+            defer {
+                state.withLock { $0.inFlight -= 1 }
+            }
+
+            try await Task.sleep(for: .milliseconds(10))
+            guard index < 20 else { return nil }
+            return self.createImageWithText("\(index)", size: size)
+        }
+
+        #expect(state.withLock { $0.maxInFlight <= 1 })
+        try dest.remove()
+    }
+
+    /// Verifies a writer instance cannot be started twice.
+    @Test
+    func startWritingTwiceThrowsInvalidAssetWriterState() async throws {
+        let size = CGSize(width: 320, height: 180)
+        let dest = destination/"startWritingTwiceThrowsInvalidAssetWriterState.mov"
+        let writer = try VideoWriter(size: size, frameRate: 30, to: dest)
+
+        try await writer.startWriting { index in
+            guard index == 0 else { return nil }
+            return self.createImageWithText("\(index)", size: size)
+        }
+
+        do {
+            try await writer.startWriting { _ in nil }
+            Issue.record("Expected invalid asset writer state error")
+        } catch let error as VideoWriter.WriteError {
+            switch error {
+            case .invalidAssetWriterState:
+                break
+            default:
+                Issue.record("Expected invalidAssetWriterState, got \(error)")
+            }
+        }
+
+        try dest.remove()
+    }
     
     
     let dummyError = NSError(domain: "", code: 0)

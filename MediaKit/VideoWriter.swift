@@ -154,7 +154,7 @@ public final class VideoWriter: @unchecked Sendable {
     /// > with `bitsPerComponent = 8`, and `bitsPerPixel = 32`
     /// >
     /// > If the frames provided are also in this format, `VideoWriter` won't need to convert between formats and can directly use the internal storage of these frames, significantly improving rendering performance.
-    public func startWriting(yield: @escaping @Sendable (_ index: Int) async throws -> CGImage?) async throws {
+    public consuming func startWriting(yield: @escaping @Sendable (_ index: Int) async throws -> CGImage?) async throws {
         if #available(iOS 26.0, macOS 26.0, visionOS 26, *) {
             return try await self.startWriting_post26(yield: yield)
         } else {
@@ -163,54 +163,65 @@ public final class VideoWriter: @unchecked Sendable {
     }
     
     
+    /// Writes frames using AVFoundation's iOS 26+ async pixel-buffer receiver API.
+    ///
+    /// The method keeps at most one frame-generation task in flight to overlap frame production
+    /// with encoding while avoiding unbounded memory growth.
+    ///
+    /// - Parameter yield: Produces the frame at the given index, or `nil` to end the stream.
     @available(iOS 26.0, macOS 26.0, visionOS 26, *)
     private func startWriting_post26(yield: @escaping @Sendable (_ index: Int) async throws -> CGImage?) async throws {
         nonisolated(unsafe) let writer = assetWriter
         guard writer.status == .unknown else { throw WriteError.invalidAssetWriterState(writer.status.rawValue) }
-        
-        let attributes = CVPixelBufferCreationAttributes(pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA), size: CVImageSize(size))
+
+        let attributes = CVPixelBufferCreationAttributes(
+            pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA),
+            size: CVImageSize(size)
+        )
         let inputReceiver = writer.inputPixelBufferReceiver(for: assetWriterVideoInput, pixelBufferAttributes: attributes)
-        
+
         try writer.start()
         writer.startSession(atSourceTime: .zero)
-        
+
         guard let pixelBufferPool = inputReceiver.pixelBufferPool else { throw WriteError.pixelBufferPoolNil }
-        
+
         let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
-        
+        let timescale = CMTimeScale(frameRate)
+
         do {
             var frameIndex = 0
-            let frameRate = frameRate
-            
-            try await withThrowingTaskGroup { taskGroup in
+
+            try await withThrowingTaskGroup(of: CGImage?.self) { taskGroup in
                 taskGroup.addTask {
                     try await yield(0)
                 }
-                
-                while let frame = try await taskGroup.next()?.map(\.self) {
-                    let index = frameIndex
-                    defer { frameIndex += 1 }
-                    let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(frameRate))
+
+                while let nextFrame = try await taskGroup.next() {
+                    guard let frame = nextFrame else { break }
+
+                    let currIndex = frameIndex
+                    frameIndex += 1
                     
                     // dispatch next frame
                     try Task.checkCancellation() // we put check cancellation here based on the assumption that generating frame is the heaviest stack.
                     taskGroup.addTask {
-                        try await yield(index + 1)
+                        try await yield(currIndex + 1)
                     }
-                    
-                    // prepare buffer
-                    let pixelBuffer = try pixelBufferPool.makeMutablePixelBuffer()
-                    try pixelBuffer.withUnsafeBuffer { pixelBuffer in
+
+                    let presentationTime = CMTime(value: CMTimeValue(currIndex), timescale: timescale)
+
+                    let mutablePixelBuffer = try pixelBufferPool.makeMutablePixelBuffer()
+                    try mutablePixelBuffer.withUnsafeBuffer { pixelBuffer in
                         try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer, colorSpace: defaultColorSpace)
                     }
-                    
-                    try await inputReceiver.append(.init(pixelBuffer), with: presentationTime)
+
+                    try await inputReceiver.append(.init(mutablePixelBuffer), with: presentationTime)
                 }
             }
-            
+
             inputReceiver.finish()
             await writer.finishWriting()
-            
+
             if let error = writer.error {
                 throw error
             }
