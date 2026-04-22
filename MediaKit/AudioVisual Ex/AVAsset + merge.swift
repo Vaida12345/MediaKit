@@ -10,7 +10,7 @@ import FinderItem
 import Essentials
 
 
-extension AVAsset {
+public extension AVAsset {
 
     /// Merges multiple videos into a single output file.
     ///
@@ -23,7 +23,7 @@ extension AVAsset {
     ///   - container: Output file type. Defaults to `.mov`.
     /// - Throws: `MergeError` for invalid input, unreadable media, track creation,
     ///   or export failures.
-    public static func merge(
+    static func merge(
         videos: [FinderItem],
         to destination: FinderItem,
         container: AVFileType = .mov
