@@ -109,51 +109,64 @@ extension AVAsset {
     }
     
     
-    /// Merges a video with audio.
+    /// Merges a video file with an audio file.
     ///
-    /// - Note: The original video would be replaced.
+    /// The result is written to a temporary file and then atomically moved to
+    /// replace `video`. The merged output duration is capped to the shorter of
+    /// the source video and source audio durations.
     ///
     /// - Parameters:
-    ///   - video: The `FinderItem` indicating the video.
-    ///   - audio: The `FinderItem` indicating the audio.
-    ///   - container: The filetype for the video.
+    ///   - video: The `FinderItem` indicating the destination video file.
+    ///   - audio: The `FinderItem` indicating the source audio file.
+    ///   - container: The file type for the merged output.
     static func merge(video: FinderItem, withAudio audio: FinderItem, container: AVFileType = .mov) async throws {
         guard video.exists else { throw MergeError.cannotReadFile(path: video.url) }
         guard audio.exists else { throw MergeError.cannotReadFile(path: audio.url) }
+
+        guard let videoAsset = await AVAsset(at: video) else { throw MergeError.cannotReadContentsOfFile(path: video.url) }
+        guard let audioAsset = await AVAsset(at: audio) else { throw MergeError.cannotReadContentsOfFile(path: audio.url) }
+
+        let composition = AVMutableComposition()
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else { throw MergeError.cannotCreateVideoTrack }
         
-        let mixComposition: AVMutableComposition = AVMutableComposition()
-        var mutableCompositionVideoTrack: [AVMutableCompositionTrack] = []
-        var mutableCompositionAudioTrack: [AVMutableCompositionTrack] = []
-        let totalVideoCompositionInstruction : AVMutableVideoCompositionInstruction = AVMutableVideoCompositionInstruction()
-        
-        guard let aVideoAsset = await AVAsset(at: video) else { throw MergeError.cannotReadContentsOfFile(path: video.url) }
-        guard let aAudioAsset = await AVAsset(at: audio) else { throw MergeError.cannotReadContentsOfFile(path: audio.url) }
-        
-        guard let videoTrack = mixComposition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MergeError.cannotCreateVideoTrack }
-        guard let audioTrack = mixComposition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MergeError.cannotCreateAudioTrack }
-        
-        mutableCompositionVideoTrack.append(videoTrack)
-        mutableCompositionAudioTrack.append(audioTrack)
-        
-        guard let aVideoAssetTrack = try await aVideoAsset.loadTracks(withMediaType: .video).first else { throw MergeError.fileEmpty(path: video.url) }
-        guard let aAudioAssetTrack = try await aAudioAsset.loadTracks(withMediaType: .audio).first else { throw MergeError.fileEmpty(path: audio.url) }
-        
-        try await mutableCompositionVideoTrack.first?.insertTimeRange(CMTimeRange(start: .zero, duration: aVideoAssetTrack.load(.timeRange).duration), of: aVideoAssetTrack, at: .zero)
-        try await mutableCompositionAudioTrack.first?.insertTimeRange(CMTimeRange(start: .zero, duration: aAudioAssetTrack.load(.timeRange).duration), of: aAudioAssetTrack, at: .zero)
-        videoTrack.preferredTransform = try await aVideoAssetTrack.load(.preferredTransform)
-        
-        try await totalVideoCompositionInstruction.timeRange = CMTimeRange(start: .zero, duration: aVideoAssetTrack.load(.timeRange).duration)
-        
-        let mutableVideoComposition: AVMutableVideoComposition = AVMutableVideoComposition()
-        let frame = try await Fraction(aVideoAssetTrack.load(.nominalFrameRate))
-        mutableVideoComposition.frameDuration = CMTime(value: Int64(frame.denominator), timescale: Int32(frame.numerator))
-        mutableVideoComposition.renderSize = try await aVideoAssetTrack.load(.naturalSize)
-        
-        guard let exportSession = AVAssetExportSession(asset: mixComposition, presetName: AVAssetExportPresetPassthrough) else { throw MergeError.cannotCreateExportSession }
-        
-        let temp = try (FinderItem.temporaryDirectory(intent: .discardable)/video.name).generateUniquePath()
-        try temp.removeIfExists()
+        guard let compositionAudioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else { throw MergeError.cannotCreateAudioTrack }
+
+        async let loadedVideoTrack = videoAsset.loadTracks(withMediaType: .video).first
+        async let loadedAudioTrack = audioAsset.loadTracks(withMediaType: .audio).first
+
+        guard let sourceVideoTrack = try await loadedVideoTrack else { throw MergeError.fileEmpty(path: video.url) }
+        guard let sourceAudioTrack = try await loadedAudioTrack else { throw MergeError.fileEmpty(path: audio.url) }
+
+        let videoDuration = try await sourceVideoTrack.load(.timeRange).duration
+        let audioDuration = try await sourceAudioTrack.load(.timeRange).duration
+        let mergedDuration = min(videoDuration, audioDuration)
+
+        guard mergedDuration.isNumeric,
+              mergedDuration.seconds > 0 else { throw MergeError.fileEmpty(path: video.url) }
+
+        try compositionVideoTrack.insertTimeRange(
+            CMTimeRange(start: .zero, duration: mergedDuration),
+            of: sourceVideoTrack,
+            at: .zero
+        )
+        try compositionAudioTrack.insertTimeRange(
+            CMTimeRange(start: .zero, duration: mergedDuration),
+            of: sourceAudioTrack,
+            at: .zero
+        )
+        compositionVideoTrack.preferredTransform = try await sourceVideoTrack.load(.preferredTransform)
+
+        guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetPassthrough) else { throw MergeError.cannotCreateExportSession }
+
+        let temp = try (FinderItem.temporaryDirectory(intent: .discardable) / (UUID().uuidString + "." + video.extension)).generateUniquePath()
         try await exportSession.export(to: temp.url, as: container)
+
         try video.remove()
         try temp.move(to: video.url)
     }
