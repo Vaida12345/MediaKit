@@ -178,37 +178,34 @@ public final class VideoWriter: @unchecked Sendable {
         
         let defaultColorSpace = CGColorSpaceCreateDeviceRGB()
         
-        let frameTaskBox = Mutex<Task<CGImage?, any Error>?>(dispatchNextFrame(index: 0))
-        var frameIndex = 0
-        let frameRate = frameRate
-        
-        @Sendable func dispatchNextFrame(index: Int) -> Task<CGImage?, any Error> {
-            Task.detached {
-                try await yield(index)
-            }
-        }
-        
         do {
-            while true {
-                let currentTask = frameTaskBox.withLock { $0 }   // snapshot under lock
-                guard let frame = try await currentTask?.value else { break }
-                
-                let index = frameIndex
-                frameIndex += 1
-                let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(frameRate))
-                
-                // dispatch next frame
-                try Task.checkCancellation() // we put check cancellation here based on the assumption that generating frame is the heaviest stack.
-                let next = dispatchNextFrame(index: index + 1)
-                frameTaskBox.withLock { $0 = next }              // mutation under lock
-                
-                // prepare buffer
-                let pixelBuffer = try pixelBufferPool.makeMutablePixelBuffer()
-                try pixelBuffer.withUnsafeBuffer { pixelBuffer in
-                    try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer, colorSpace: defaultColorSpace)
+            var frameIndex = 0
+            let frameRate = frameRate
+            
+            try await withThrowingTaskGroup { taskGroup in
+                taskGroup.addTask {
+                    try await yield(0)
                 }
                 
-                try await inputReceiver.append(.init(pixelBuffer), with: presentationTime)
+                while let frame = try await taskGroup.next()?.map(\.self) {
+                    let index = frameIndex
+                    defer { frameIndex += 1 }
+                    let presentationTime = CMTime(value: CMTimeValue(index), timescale: CMTimeScale(frameRate))
+                    
+                    // dispatch next frame
+                    try Task.checkCancellation() // we put check cancellation here based on the assumption that generating frame is the heaviest stack.
+                    taskGroup.addTask {
+                        try await yield(index + 1)
+                    }
+                    
+                    // prepare buffer
+                    let pixelBuffer = try pixelBufferPool.makeMutablePixelBuffer()
+                    try pixelBuffer.withUnsafeBuffer { pixelBuffer in
+                        try VideoWriter.copyOrConvertCGImage(frame, to: pixelBuffer, colorSpace: defaultColorSpace)
+                    }
+                    
+                    try await inputReceiver.append(.init(pixelBuffer), with: presentationTime)
+                }
             }
             
             inputReceiver.finish()
@@ -219,10 +216,6 @@ public final class VideoWriter: @unchecked Sendable {
             }
         } catch {
             writer.cancelWriting()
-            frameTaskBox.withLock {
-                $0?.cancel()
-                $0 = nil
-            }
             throw error
         }
     }
