@@ -6,6 +6,7 @@
 //
 
 import FinderItem
+import AVFoundation
 
 
 extension FinderItem.LoadableContent {
@@ -14,6 +15,18 @@ extension FinderItem.LoadableContent {
     public static var audioFile: FinderItem.LoadableContent<AudioFile, any Error> {
         .init { source in
             AudioFile(at: source)
+        }
+    }
+    
+}
+
+extension FinderItem.AsyncLoadableContent {
+    
+    @inlinable
+    public static var avAsset: FinderItem.AsyncLoadableContent<AVURLAsset, any Error> {
+        .init { source in
+            guard let asset = await AVURLAsset(at: source) else { throw FinderItem.FileError(code: .cannotRead(reason: .corruptFile), source: source) }
+            return asset
         }
     }
     

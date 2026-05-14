@@ -164,11 +164,10 @@ public extension AVAsset {
 
         guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetPassthrough) else { throw MergeError.cannotCreateExportSession }
 
-        let temp = try (FinderItem.temporaryDirectory(intent: .discardable) / (UUID().uuidString + "." + video.extension)).generateUniquePath()
+        let temp = try FinderItem.itemReplacementDirectory(in: video) / (UUID().uuidString + "." + video.extension)
         try await exportSession.export(to: temp.url, as: container)
 
-        try video.remove()
-        try temp.move(to: video.url)
+        try temp.replace(video)
     }
     
     /// A set of errors as defined in the extensions for AVAsset.

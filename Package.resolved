@@ -1,5 +1,5 @@
 {
-  "originHash" : "9b28cfc7cab1295d6a9688278541795ed180a57e15d321fd931cb9dee894c6af",
+  "originHash" : "b1e7792154199e27a159793e5ca82d0bf45ba58f87a21f5885619138664680cc",
   "pins" : [
     {
       "identity" : "concurrentstream",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Vaida12345/FinderItem",
       "state" : {
-        "revision" : "cbbe70e8a975291797a7b38db3a083a146eba0c3",
-        "version" : "1.2.1"
+        "revision" : "7b2a205302c6b3738daddd64139311d48377ab78",
+        "version" : "2.0.1"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Vaida12345/NativeImage",
       "state" : {
-        "revision" : "85534ff1cf306ed9e674c5dc782dd0ca8bda423d",
-        "version" : "1.0.3"
+        "revision" : "6a5fda39a9170ca96dc214c9f42a4e74310531e9",
+        "version" : "1.3.0"
       }
     },
     {
