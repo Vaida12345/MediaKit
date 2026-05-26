@@ -26,7 +26,7 @@ func createImageWithText(_ text: String, size: CGSize, font: NSFont = NSFont.sys
                             bitsPerComponent: 8,
                             bytesPerRow: 0,
                             space: colorSpace,
-                            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Big.rawValue)
+                            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
     
     guard let context = context else {
         print("Failed to create graphics context.")

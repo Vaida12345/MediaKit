@@ -276,8 +276,6 @@ public final class VideoWriter: @unchecked Sendable {
                     guard videoState.withLock({ $0 == .rendering }) else { return }
                     
                     while (self?.assetWriterVideoInput.isReadyForMoreMediaData ?? false) && videoState.withLock({ $0 == .rendering }) {
-                        print("request next")
-                        
                         let semaphore = DispatchSemaphore(value: 0)
                         // semaphore runs on media queue, ensures it waits for task to complete. otherwise it would keep requesting medias.
                         Task { @Sendable in
@@ -327,15 +325,9 @@ public final class VideoWriter: @unchecked Sendable {
                             }
                         }
                         semaphore.wait()
-                        
-                        print("render complete")
                     }
                     
-                    print("no longer rendering")
-                    
                     videoState.withLock { state in
-                        print("video state is \(state)")
-                        
                         switch state {
                         case .rendering:
                             break
@@ -359,8 +351,6 @@ public final class VideoWriter: @unchecked Sendable {
                     }
                 }
             } // end withCheckedThrowingContinuation
-            
-            print("end video")
             
             guard videoState.withLock({ $0.isFinished }) else {
                 writer.cancelWriting()
