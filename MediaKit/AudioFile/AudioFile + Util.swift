@@ -13,7 +13,7 @@ extension AudioFile {
     
     /// Converts an Audio File Services error into a descriptive read error.
     public static func parseReadError(_ error: NSError) -> ParsedReadError? {
-        guard error.domain == NSOSStatusErrorDomain || error.domain == "com.apple.coreaudio.avaudio" else { return nil }
+        guard error.domain == NSOSStatusErrorDomain || error.domain == "com.apple.coreaudio.avfaudio" else { return nil }
         
         switch Int32(error.code) {
         case kAudioFileUnspecifiedError:
