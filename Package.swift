@@ -15,7 +15,7 @@ let package = Package (
     ], products: [
         .library(name: "MediaKit", targets: ["MediaKit"]),
     ], dependencies: [
-        .package(url: "https://github.com/Vaida12345/FinderItem.git", from: "2.0.0"),
+        .package(url: "https://github.com/Vaida12345/FinderItem.git", from: "2.4.2"),
         .package(url: "https://github.com/Vaida12345/ConcurrentStream.git", from: "1.0.0"),
         .package(url: "https://github.com/Vaida12345/DetailedDescription.git", from: "2.0.3"),
         .package(url: "https://github.com/Vaida12345/NativeImage.git", from: "1.3.0"),

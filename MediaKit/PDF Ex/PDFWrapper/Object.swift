@@ -128,7 +128,7 @@ extension CGPDFPageWrapper {
             case .dictionary(let dictionary):
                 descriptor.value("", of: dictionary)
             case .null:
-                descriptor.constant("null")
+                descriptor.raw("null")
             }
         }
         

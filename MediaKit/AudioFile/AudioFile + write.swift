@@ -62,7 +62,7 @@ extension AudioFile {
         metadata: [AVMetadataItem] = []
     ) async throws {
         precondition(codec.fileTypes.contains(fileType), "Invalid codec and fileType combination")
-        guard !destination.exists else { throw FinderItem.FileError(code: .cannotWrite(reason: .fileExists), source: destination) }
+        guard !destination.exists else { throw FinderItem.FileError(.fileExists, source: destination, intent: .writing) }
         
         // 1. Load the asset
         let asset = self.asset

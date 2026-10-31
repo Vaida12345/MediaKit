@@ -25,7 +25,7 @@ extension FinderItem.AsyncLoadableContent {
     @inlinable
     public static var avAsset: FinderItem.AsyncLoadableContent<AVURLAsset, any Error> {
         .init { source in
-            guard let asset = await AVURLAsset(at: source) else { throw FinderItem.FileError(code: .cannotRead(reason: .corruptFile), source: source) }
+            guard let asset = await AVURLAsset(at: source) else { throw FinderItem.FileError(.corruptFile, source: source, intent: .reading) }
             return asset
         }
     }

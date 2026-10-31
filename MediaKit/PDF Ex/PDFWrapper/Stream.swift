@@ -57,9 +57,9 @@ extension CGPDFPageWrapper {
         
         
         private func getContentDescription(descriptor: DetailedDescription.Descriptor<Self>) -> any DescriptionBlockProtocol {
-            guard self.format == .raw else { return descriptor.constant("content: Image") }
+            guard self.format == .raw else { return descriptor.raw("content: Image") }
             if (try? self.load(.image)) != nil {
-                return descriptor.constant("content: Image")
+                return descriptor.raw("content: Image")
             } else if let string = String(data: content, encoding: .utf8) {
                 return descriptor.value("content (decoded)", of: string)
             }
@@ -72,13 +72,13 @@ extension CGPDFPageWrapper {
                 descriptor.value(for: \.dictionary)
                 switch self.format {
                 case .raw:
-                    descriptor.constant("format: raw")
+                    descriptor.raw("format: raw")
                 case .jpegEncoded:
-                    descriptor.constant("format: jpegEncoded")
+                    descriptor.raw("format: jpegEncoded")
                 case .JPEG2000:
-                    descriptor.constant("format: JPEG2000")
+                    descriptor.raw("format: JPEG2000")
                 @unknown default:
-                    descriptor.constant("Unknown format \(format)")
+                    descriptor.raw("Unknown format \(format)")
                 }
                 
                 getContentDescription(descriptor: descriptor)
