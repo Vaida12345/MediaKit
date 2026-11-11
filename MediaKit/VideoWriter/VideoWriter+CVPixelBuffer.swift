@@ -32,11 +32,15 @@ extension VideoWriter {
     /// - Note: the `pixelBuffer` is explicitly metal-compatible.
     ///
     /// > Precondition:
-    /// > The `pixelBuffer` is in `kCVPixelFormatType_32BGRA`, which is `CGImageAlphaInfo.premultipliedFirst | CGBitmapInfo.byteOrder32Little`, with `bitsPerComponent = 8`, and `bitsPerPixel = 32`. It already has the `size` the writer was created with, and is IOSurface-backed, so it can be a render target for Core Image or Metal.
+    /// > With `SDR`, the `pixelBuffer` is in `kCVPixelFormatType_32BGRA`, which is `CGImageAlphaInfo.premultipliedFirst | CGBitmapInfo.byteOrder32Little`, with `bitsPerComponent = 8`, and `bitsPerPixel = 32`.
+    /// >
+    /// > With `HDR`, it is in `kCVPixelFormatType_64RGBAHalf`: four half floats a pixel, in the order R, G, B, A, holding the HLG signal, see ``ColorSpace``. It is already tagged, so do not remove the tags. In Metal, that is `MTLPixelFormat.rgba16Float`.
+    /// >
+    /// > It already has the `size` the writer was created with, and is IOSurface-backed, so it can be a render target for Core Image or Metal.
     /// >
     /// > To access its bytes on the CPU:
     /// > - Lock it with `CVPixelBufferLockBaseAddress` first, as it is not locked when passed to `yield`.
-    /// > - Use `CVPixelBufferGetBytesPerRow` as the row stride, as rows can be padded beyond `width * 4`.
+    /// > - Use `CVPixelBufferGetBytesPerRow` as the row stride, as rows can be padded beyond `width * 4` (`width * 8` for `HDR`).
     /// > - Overwrite every pixel, as the buffer comes from a pool and its initial contents are unspecified.
     /// >
     /// > Do not keep the `pixelBuffer`, or modify it, after `yield` returns.
@@ -60,7 +64,7 @@ extension VideoWriter {
         guard writer.status == .unknown else { throw WriteError.invalidAssetWriterState(writer.status.rawValue) }
         
         let attributes = CVPixelBufferCreationAttributes(
-            pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA),
+            pixelFormatType: .init(rawValue: colorSpace.pixelFormatType),
             size: CVImageSize(size),
             compatibility: [.metalTexture]
         )
@@ -83,7 +87,8 @@ extension VideoWriter {
                 
                 let mutablePixelBuffer = try pixelBufferPool.makeMutablePixelBuffer()
                 let isValid = try mutablePixelBuffer.withUnsafeBuffer { pixelBuffer in
-                    try yield(frameIndex, pixelBuffer)
+                    self.colorSpace.tag(pixelBuffer)
+                    return try yield(frameIndex, pixelBuffer)
                 }
                 guard isValid else { break }
                 
@@ -113,7 +118,7 @@ extension VideoWriter {
         writer.add(assetWriterVideoInput)
         
         let sourceBufferAttributes: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferPixelFormatTypeKey as String: colorSpace.pixelFormatType,
             kCVPixelBufferWidthKey as String: size.width,
             kCVPixelBufferHeightKey as String: size.height,
             kCVPixelBufferMetalCompatibilityKey as String: true,
@@ -149,6 +154,7 @@ extension VideoWriter {
                                 throw WriteError.failedToCreatePixelBuffer(pixelBufferCreationStatus)
                             }
                             
+                            self?.colorSpace.tag(pixelBuffer)
                             guard try yield(frameIndex, pixelBuffer) else {
                                 videoState.withLock { state in
                                     if state == .rendering {

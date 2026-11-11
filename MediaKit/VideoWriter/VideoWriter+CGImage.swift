@@ -27,6 +27,8 @@ extension VideoWriter {
     ///
     /// - Precondition: The images produced from `yield` must match the `size` when initializing the writer.
     ///
+    /// - Throws: ``WriteError/hdrNotSupportedForImages`` when the writer is `HDR`, before anything is written. A `CGImage` is 8-bit, so use the `CVPixelBuffer` overload for `HDR`.
+    ///
     /// > Tip:
     /// > The native video frame buffer format is:
     /// > ```
@@ -36,6 +38,8 @@ extension VideoWriter {
     /// >
     /// > If the frames provided are also in this format, `VideoWriter` won't need to convert between formats and can directly use the internal storage of these frames, significantly improving rendering performance.
     public consuming func startWriting(yield: @escaping (_ index: Int) async throws -> sending CGImage?) async throws {
+        guard self.colorSpace == .SDR else { throw WriteError.hdrNotSupportedForImages }
+        
         if #available(iOS 26.0, macOS 26.0, visionOS 26, *) {
             return try await self.startWriting_post26(yield: yield)
         } else {
