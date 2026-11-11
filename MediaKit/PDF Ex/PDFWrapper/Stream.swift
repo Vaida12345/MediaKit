@@ -190,7 +190,7 @@ extension CGPDFPageWrapper {
             }
             
             public func load(_ stream: CGPDFPageWrapper.Stream) throws(Failure) -> Result? {
-                let logger = Logger(subsystem: "MediaKit", category: "CGPDFWrapper.Stream.LoadableImage.load(_:)")
+                let logger = Logger(subsystem: "dev.vaida.mediakit", category: "CGPDFWrapper.Stream.LoadableImage.load(_:)")
                 
                 let colorSpace = loadColorSpace(stream, logger: logger) ?? CGColorSpaceCreateDeviceRGB()
                 let interpolate = stream.dictionary["Interpolate"]?.boolean ?? false
